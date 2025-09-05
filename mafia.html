@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Verd@Net — Mafia</title>
+<link rel="icon" href="icon.ico" type="image/x-icon">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { color-scheme: dark; }
+  html, body { height: 100%; }
+  body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; }
+
+  .glass { background: rgba(255,255,255,0.06); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08); }
+  .brand-vn { width: 40px; height: 40px; border-radius: 0.75rem; background:#2563eb; display:grid; place-items:center; color:white; font-weight:800; letter-spacing:.5px; box-shadow:0 10px 20px rgba(37,99,235,.25); }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 9999px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1); }
+  .btn { transition: transform .12s ease, box-shadow .2s ease; }
+  .btn:hover { transform: translateY(-1px); }
+  .spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg);} }
+  .pulse { animation: pulse 1.5s ease-in-out infinite; } @keyframes pulse { 0%,100%{opacity:.55} 50%{opacity:1} }
+
+  /* Fondos por fase */
+  .bg-lobby  { background-image:url("assets/backgrounds/mafia_waiting.jpg"); }
+  .bg-night  { background-image:url("assets/backgrounds/mafia_night.jpg"); }
+  .bg-day    { background-image:url("assets/backgrounds/mafia_day.jpg"); }
+  .bg-reveal { background-image:url("assets/backgrounds/mafia_reveal.jpg"); }
+  .phase-bg  { background-size: cover; background-position:center; }
+
+  /* Crowd (personajes al fondo) */
+  #crowd { position:fixed; left:0; right:0; bottom:0; height: 34vh; pointer-events:none; display:flex; align-items:flex-end; justify-content:center; gap:28px; padding-bottom:18px; z-index: 0; }
+  .char { width:110px; height:110px; filter: drop-shadow(0 10px 20px rgba(0,0,0,.4)); opacity:0; transform: translateY(40px) scale(.95); animation: popin .5s forwards; }
+  @keyframes popin { to { opacity:1; transform: translateY(0) scale(1);} }
+  .char small { display:block; text-align:center; margin-top:4px; color:#e5e7eb; font-size:12px; text-shadow:0 2px 8px rgba(0,0,0,.6); }
+  .char img { width:100%; height:100%; object-fit:contain; }
+
+  /* Lobby slots */
+  .slot { border:1px dashed rgba(255,255,255,.18); border-radius:14px; padding:12px; min-height:88px; display:flex; gap:10px; align-items:center; background:rgba(255,255,255,.03); }
+  .slot.full { border-style:solid; background: rgba(16,185,129,.08); border-color: rgba(16,185,129,.35); }
+  .avatar-img { width: 44px; height: 44px; border-radius: 9999px; background:#27272a; object-fit: cover; display:block; }
+
+  /* Reveal */
+  #revealOverlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; backdrop-filter: blur(6px); background: rgba(0,0,0,.45); z-index:50; }
+  .card { width:140px; height:200px; border-radius:16px; background:#0b0b0c; border:1px solid rgba(255,255,255,.12); display:grid; place-items:center; color:#e5e7eb; font-weight:700; letter-spacing:.5px; transform-style:preserve-3d; transition:transform .6s; position:relative; }
+  .card.flip { transform: rotateY(180deg); }
+  .face, .back { position:absolute; inset:0; border-radius:16px; display:grid; place-items:center; backface-visibility:hidden; }
+  .back { transform: rotateY(180deg); }
+  .shine { position:absolute; inset:-1px; border-radius:16px; background: conic-gradient(from 0deg, transparent, rgba(255,255,255,.25), transparent 30%); filter: blur(6px); opacity:.6; animation: spin 2.8s linear infinite; }
+  .reveal-grid { display:grid; grid-template-columns: repeat(3, 140px); gap:16px; }
+
+  /* Talk chat */
+  #talkWrap { display:flex; flex-direction:column; gap:12px; height: 46vh; }
+  #talkList { flex:1; overflow-y:auto; padding-right:4px; }
+  .talk-msg { display:flex; gap:8px; align-items:flex-start; }
+  .talk-bubble { border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:8px 12px; background: rgba(255,255,255,.06); }
+  .talk-meta { font-size:10px; color:#a1a1aa; margin-bottom:2px; }
+</style>
+</head>
+<body class="min-h-full text-zinc-100">
+
+<!-- 🔙 Volver al chat (siempre visible) -->
+<a href="chat.html" class="fixed top-3 left-3 z-50 glass btn px-3 py-2 rounded-xl text-sm hover:bg-white/10">← Volver al chat</a>
+
+<!-- FONDO por fase -->
+<div id="phaseBg" class="phase-bg fixed inset-0 -z-10"></div>
+
+<!-- CROWD (personajes abajo) -->
+<div id="crowd"></div>
+
+<!-- Loading -->
+<section id="loading" class="min-h-screen grid place-items-center p-6">
+  <div class="glass rounded-2xl p-6 w-full max-w-sm text-center">
+    <div class="mx-auto brand-vn mb-3">VN</div>
+    <div class="flex items-center justify-center gap-2 mb-2">
+      <svg class="w-5 h-5 spin" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity=".25" stroke-width="4"/>
+        <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" stroke-width="4"/>
+      </svg>
+      <span>Cargando Mafia…</span>
+    </div>
+    <div id="loadingMsg" class="text-xs text-rose-300">Conectando…</div>
+    <div class="mt-4">
+      <a href="chat.html" class="px-3 py-2 rounded-xl text-sm hover:bg-white/10 inline-block">Volver al chat</a>
+    </div>
+  </div>
+</section>
+
+<!-- Requiere login -->
+<section id="needAuth" class="hidden min-h-screen grid place-items-center p-6">
+  <div class="glass rounded-2xl p-6 w-full max-w-sm text-center">
+    <div class="mx-auto brand-vn mb-3">VN</div>
+    <h2 class="text-lg font-semibold mb-1">Inicia sesión para jugar</h2>
+    <p class="text-sm text-zinc-200 mb-4">Abre <b>chat.html</b>, inicia sesión y vuelve.</p>
+    <a href="chat.html" class="px-3 py-2 rounded-xl text-sm bg-indigo-600 hover:bg-indigo-500">Ir al chat</a>
+  </div>
+</section>
+
+<!-- 🌟 SALA DE ESPERA REAL -->
+<section id="lobby" class="hidden min-h-screen grid place-items-center p-6">
+  <div class="glass rounded-2xl p-6 w-full max-w-3xl">
+    <div class="flex items-center justify-between gap-3 mb-4">
+      <div class="flex items-center gap-3">
+        <div class="brand-vn">VN</div>
+        <div>
+          <div class="text-lg font-bold">Mafia — Sala de espera</div>
+          <div id="roomStatus" class="text-xs text-zinc-300">Esperando jugadores…</div>
+        </div>
+      </div>
+      <div class="pill" id="countText">0/3</div>
+    </div>
+
+    <!-- 3 Slots -->
+    <div class="grid md:grid-cols-3 gap-3 mb-4" id="slots">
+      <div class="slot" data-slot="0">
+        <div class="avatar-img"></div>
+        <div class="text-sm">
+          <div class="font-medium">Esperando…</div>
+          <div class="text-xs text-zinc-400">Conéctate desde el chat</div>
+        </div>
+      </div>
+      <div class="slot" data-slot="1">
+        <div class="avatar-img"></div>
+        <div class="text-sm">
+          <div class="font-medium">Esperando…</div>
+          <div class="text-xs text-zinc-400">Conéctate desde el chat</div>
+        </div>
+      </div>
+      <div class="slot" data-slot="2">
+        <div class="avatar-img"></div>
+        <div class="text-sm">
+          <div class="font-medium">Esperando…</div>
+          <div class="text-xs text-zinc-400">Conéctate desde el chat</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between">
+      <div class="text-xs text-zinc-400">Participan: <b>Hodely</b>, <b>Logan</b>, <b>Hugo</b></div>
+      <div class="flex items-center gap-2">
+        <button id="botsBtn"  class="hidden px-3 py-2 rounded-xl text-sm bg-fuchsia-600 hover:bg-fuchsia-500 btn">Añadir bots</button>
+        <button id="startBtn" class="hidden px-3 py-2 rounded-xl text-sm bg-emerald-600 hover:bg-emerald-500 btn">Empezar partida</button>
+        <button id="leaveBtn" class="px-3 py-2 rounded-xl text-sm hover:bg-white/10 btn">Salir</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Noche -->
+<section id="night" class="hidden min-h-screen grid place-items-center p-6">
+  <div class="glass rounded-2xl p-6 w-full max-w-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <div class="text-lg font-bold">🌙 Noche <span id="roundNight" class="text-sm text-zinc-300"></span></div>
+      <div id="roleBadgeNight" class="pill"></div>
+    </div>
+    <div id="nightForMafia" class="hidden">
+      <p class="text-sm text-zinc-200 mb-3">Eres <b>MAFIA</b>. Elige a quién envenenar (puedes elegirte):</p>
+      <div id="targetsNight" class="grid md:grid-cols-3 gap-3 mb-4"></div>
+      <button id="poisonBtn" class="px-3 py-2 rounded-xl text-sm bg-indigo-600 hover:bg-indigo-500 btn disabled:opacity-50" disabled>Envenenar</button>
+    </div>
+    <div id="nightForCiv" class="hidden">
+      <p class="text-sm text-zinc-200">Es de noche… esperando la jugada del mafia <span class="pulse">•</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- Día — Charla (50s con chat) -->
+<section id="talk" class="hidden min-h-screen grid place-items-center p-6">
+  <div class="glass rounded-2xl p-6 w-full max-w-2xl">
+    <div class="flex items-center justify-between mb-2">
+      <div class="text-lg font-bold">☀️ Día — Charla <span id="talkRound" class="text-sm text-zinc-300"></span></div>
+      <div class="pill">Termina en <b id="talkCountdown">50s</b></div>
+    </div>
+    <div id="talkWrap">
+      <div id="talkList" class="scroll-soft"></div>
+      <div class="flex items-end gap-2">
+        <textarea id="talkInput" rows="1" placeholder="Escribe aquí (se borrará al terminar)…"
+          class="flex-1 resize-none px-3 py-2 rounded-xl bg-zinc-900 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-600"></textarea>
+        <button id="talkSend" class="px-3 py-2 rounded-xl text-sm bg-indigo-600 hover:bg-indigo-500 btn">Enviar</button>
+      </div>
+    </div>
+    <div class="text-xs text-zinc-400 mt-2">El chat de charla se <b>borra</b> automáticamente al acabar el tiempo.</div>
+  </div>
+</section>
+
+<!-- Día (votación) -->
+<section id="day" class="hidden min-h-screen grid place-items-center p-6">
+  <div class="glass rounded-2xl p-6 w-full max-w-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <div class="text-lg font-bold">☀️ Votación <span id="roundDay" class="text-sm text-zinc-300"></span></div>
+      <div id="roleBadgeDay" class="pill"></div>
+    </div>
+    <p class="text-sm text-zinc-200 mb-3">El más votado recibe <b>+2</b> envenenamientos. Tiempo restante: <b id="voteCountdown">45s</b>.</p>
+    <div id="voteTargets" class="grid md:grid-cols-3 gap-3 mb-4"></div>
+    <div class="flex items-center justify-between">
+      <div class="text-xs text-zinc-200" id="votesInfo">0/0 votos</div>
+      <button id="clearVoteBtn" class="px-3 py-2 rounded-xl text-sm hover:bg-white/10 btn">Quitar mi voto</button>
+    </div>
+  </div>
+</section>
+
+<!-- Fin -->
+<section id="end" class="hidden min-h-screen grid place-items-center p-6">
+  <div class="glass rounded-2xl p-6 w-full max-w-md text-center">
+    <div class="text-2xl font-extrabold mb-2" id="endTitle">Fin de la partida</div>
+    <div class="text-sm text-zinc-300 mb-2" id="endDesc"></div>
+    <div class="text-sm text-zinc-200 mb-4" id="mafiosoLine" style="display:none">
+      El mafioso era <b id="mafiosoName">—</b>.
+    </div>
+    <div id="endActions" class="flex items-center justify-center gap-2">
+      <button id="newGameBtn" class="hidden px-3 py-2 rounded-xl text-sm bg-emerald-600 hover:bg-emerald-500">Nueva partida (admin)</button>
+      <span id="waitAdminMsg" class="hidden text-xs text-zinc-400">Esperando a que el admin inicie una nueva partida…</span>
+      <a href="chat.html" class="px-3 py-2 rounded-xl text-sm bg-indigo-600 hover:bg-indigo-500">Volver al chat</a>
+    </div>
+  </div>
+</section>
+
+<!-- Overlay REVEAL -->
+<div id="revealOverlay">
+  <div class="glass rounded-2xl p-6 border border-white/10">
+    <h3 class="text-center text-lg font-bold mb-3">Repartiendo roles…</h3>
+    <div id="revealGrid" class="reveal-grid"></div>
+    <div class="text-center text-sm text-zinc-300 mt-3">Se revelará automáticamente…</div>
+  </div>
+</div>
+
+<script type="module">
+  // ===== Config =====
+  const TALK_MS = 50_000; // 50s charla (con chat)
+  const VOTE_MS = 45_000; // 45s votación
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCkNI9EEw_4Rf8f4IqygydRTbHSHBAYnKs",
+    authDomain: "klex-28ea5.firebaseapp.com",
+    databaseURL: "https://klex-28ea5-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "klex-28ea5",
+    storageBucket: "klex-28ea5.appspot.com",
+    messagingSenderId: "794750673743",
+    appId: "1:794750673743:web:8b38291a417089e643db3a",
+    measurementId: "G-DQ6E8NBVGR"
+  };
+  const ADMIN_EMAIL = 'hodelyproductions@gmail.com';
+  const REQUIRED = 3;
+
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+  import {
+    getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc,
+    collection, getDocs, deleteDoc, serverTimestamp, writeBatch, orderBy, query, limit
+  } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // ===== UI / helpers =====
+  const $ = (id)=>document.getElementById(id);
+  const show = (el)=> el.classList.remove('hidden');
+  const hide = (el)=> el.classList.add('hidden');
+  const sleep = (ms)=> new Promise(r=>setTimeout(r,ms));
+  const rnd = (arr)=> arr[Math.floor(Math.random()*arr.length)];
+  const isAdmin = (u)=> (u?.email||'').toLowerCase()===ADMIN_EMAIL;
+
+  const BOT_IDS = { logan:'bot_logan', hugo:'bot_hugo' };
+  const NAME_FOR_EMAIL = (email)=> (email||'').split('@')[0];
+
+  const sec = { loading:$('loading'), needAuth:$('needAuth'), lobby:$('lobby'), night:$('night'), talk:$('talk'), day:$('day'), end:$('end') };
+  const el = {
+    loadingMsg: $('loadingMsg'),
+    roomStatus: $('roomStatus'),
+    countText: $('countText'),
+    startBtn: $('startBtn'),
+    botsBtn:  $('botsBtn'),
+    leaveBtn: $('leaveBtn'),
+    roundNight: $('roundNight'),
+    roundDay: $('roundDay'),
+    talkRound: $('talkRound'),
+    roleBadgeNight: $('roleBadgeNight'),
+    roleBadgeDay: $('roleBadgeDay'),
+    nightForMafia: $('nightForMafia'),
+    nightForCiv: $('nightForCiv'),
+    targetsNight: $('targetsNight'),
+    poisonBtn: $('poisonBtn'),
+    voteTargets: $('voteTargets'),
+    votesInfo: $('votesInfo'),
+    clearVoteBtn: $('clearVoteBtn'),
+    endTitle: $('endTitle'),
+    endDesc: $('endDesc'),
+    phaseBg: $('phaseBg'),
+    crowd: $('crowd'),
+    reveal: document.getElementById('revealOverlay'),
+    revealGrid: $('revealGrid'),
+    mafiosoName: $('mafiosoName'),
+    mafiosoLine: $('mafiosoLine'),
+    newGameBtn: $('newGameBtn'),
+    waitAdminMsg: $('waitAdminMsg'),
+    talkCountdown: $('talkCountdown'),
+    voteCountdown: $('voteCountdown'),
+    // talk chat
+    talkList: $('talkList'),
+    talkInput: $('talkInput'),
+    talkSend: $('talkSend'),
+    slots: document.getElementById('slots')
+  };
+
+  let ROOM_ID = 'room1';
+  const roomRef   = doc(db,'games','mafia','rooms',ROOM_ID);
+  const playersCol= collection(db,'games','mafia','rooms',ROOM_ID,'players');
+  const votesCol  = collection(db,'games','mafia','rooms',ROOM_ID,'votes');
+  const talkCol   = collection(db,'games','mafia','rooms',ROOM_ID,'talk');
+
+  let MY_PLAYER = null;
+  let HEARTBEAT = null;
+  let selectedPoisonTarget = null;
+  let talkTimer = null, voteTimer = null;
+  let unsubRoom=null, unsubPlayers=null, unsubVotes=null, unsubTalk=null;
+
+  /* ===== Helpers visuales ===== */
+  function setPhaseBg(phase){
+    const map = { waiting:'bg-lobby', night:'bg-night', day:'bg-day', reveal:'bg-reveal', talk:'bg-day', ended:'bg-day' };
+    $('#phaseBg').className = 'phase-bg fixed inset-0 -z-10 ' + (map[phase]||'bg-lobby');
+  }
+  function imgFor(name){ return `assets/players/${name}.svg`; }
+
+  function renderCrowd(players){
+    el.crowd.innerHTML = '';
+    players.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+    players.forEach((p,i)=>{
+      const short = (p.name||'').split(' ')[0];
+      const hasImg = ['Hodely','Hugo','Logan'].includes(short);
+      const div = document.createElement('div');
+      div.className = 'char';
+      div.style.animationDelay = `${i*120}ms`;
+      div.innerHTML = hasImg
+        ? `<div><img src="${imgFor(short)}" alt="${p.name}"><small>${p.name}</small></div>`
+        : `<div><img src="${imgFor('Hodely')}" style="opacity:.15"><small>${p.name}</small></div>`;
+      el.crowd.appendChild(div);
+    });
+  }
+
+  function fillLobbySlots(players){
+    // Rellena 3 slots exactos con ocupados/vacíos
+    const slots = [...el.slots.querySelectorAll('.slot')];
+    for (let i=0;i<3;i++){
+      const slot = slots[i];
+      const p = players[i];
+      if (p){
+        slot.classList.add('full');
+        const short = (p.name||'').split(' ')[0];
+        const hasImg = ['Hodely','Hugo','Logan'].includes(short);
+        slot.innerHTML = `
+          ${hasImg?`<img src="${imgFor(short)}" class="avatar-img" alt="${p.name}">`:`<div class="avatar-img grid place-items-center text-sm">${(p.name?.[0]||'?').toUpperCase()}</div>`}
+          <div class="text-sm">
+            <div class="font-medium">${p.name} ${p.bot?'<span class="pill ml-1">BOT</span>':''} ${(p.email||'').toLowerCase()===ADMIN_EMAIL?'<span class="pill ml-1">ADMIN</span>':''}</div>
+            <div class="text-xs text-zinc-400">Conectado</div>
+          </div>`;
+      } else {
+        slot.classList.remove('full');
+        slot.innerHTML = `
+          <div class="avatar-img"></div>
+          <div class="text-sm">
+            <div class="font-medium">Esperando…</div>
+            <div class="text-xs text-zinc-400">Conéctate desde el chat</div>
+          </div>`;
+      }
+    }
+  }
+
+  function showSection(key){ Object.values(sec).forEach(hide); show(sec[key]); }
+  function clearTimers(){ if (talkTimer){ clearInterval(talkTimer); talkTimer=null; } if (voteTimer){ clearInterval(voteTimer); voteTimer=null; } }
+
+  function setPhaseUI(room){
+    setPhaseBg(room.status);
+    if (room.status==='waiting'){ el.roomStatus.textContent = 'Esperando jugadores…'; showSection('lobby'); }
+    if (room.status==='reveal'){ showReveal(room); }
+    if (room.status==='night'){ el.roundNight.textContent = `(ronda ${room.round||1})`; showSection('night'); }
+    if (room.status==='talk'){ el.talkRound.textContent = `(ronda ${room.round||1})`; showSection('talk'); }
+    if (room.status==='day'){ el.roundDay.textContent = `(ronda ${room.round||1})`; showSection('day'); }
+    if (room.status==='ended'){ showSection('end'); }
+  }
+
+  /* ===== Presence ===== */
+  async function joinRoom(){
+    const u = auth.currentUser; if(!u) return;
+    const r = await getDoc(roomRef);
+    if(!r.exists()){
+      await setDoc(roomRef, {
+        status:'waiting', round:0, required: REQUIRED,
+        createdAt: serverTimestamp(), mafiaUid: null, nightTarget: null, adminUid: isAdmin(u)?u.uid:null,
+        revealUntilMs: null, talkUntilMs: null, voteUntilMs: null, mafiaName: null
+      });
+    } else if (isAdmin(u) && !r.data().adminUid) {
+      await updateDoc(roomRef, { adminUid: u.uid });
+    }
+    const name = u.displayName || NAME_FOR_EMAIL(u.email);
+    const pRef = doc(playersCol,u.uid);
+    await setDoc(pRef, {
+      uid: u.uid, name, email: u.email,
+      alive: true, poison: 0, role: null, lastSeen: Date.now(), joinedAt: serverTimestamp(), bot: false
+    }, { merge:true });
+
+    if (HEARTBEAT) clearInterval(HEARTBEAT);
+    // latido un poco más frecuente para que el lobby no "pierda" a gente
+    HEARTBEAT = setInterval(async ()=>{ try{ await updateDoc(pRef, { lastSeen: Date.now() }); }catch{} }, 5000);
+
+    window.addEventListener('beforeunload', async ()=>{ try{ await deleteDoc(pRef); }catch{} }, { once:true });
+  }
+
+  /* ===== Snapshots ===== */
+  function setupSnapshots(){
+    if (unsubRoom) unsubRoom(); if (unsubPlayers) unsubPlayers(); if (unsubVotes) unsubVotes(); if (unsubTalk) unsubTalk();
+
+    unsubRoom = onSnapshot(roomRef, async (snap)=>{
+      if(!snap.exists()) return;
+      const room = snap.data();
+      setPhaseUI(room);
+
+      if (MY_PLAYER){
+        const isMaf = MY_PLAYER.role==='mafia';
+        const roleText = isMaf ? 'Tu rol: MAFIA' : 'Tu rol: Habitante';
+        el.roleBadgeNight.textContent = roleText;
+        el.roleBadgeDay.textContent = roleText;
+        el.nightForMafia.classList.toggle('hidden', !isMaf);
+        el.nightForCiv.classList.toggle('hidden', isMaf);
+      }
+
+      // Timers (admin)
+      clearTimers();
+      if (isAdmin(auth.currentUser)){
+        const now = Date.now();
+        if (room.status==='reveal' && room.revealUntilMs && now > room.revealUntilMs) {
+          await updateDoc(roomRef, { status:'night' });
+          await prepareNightUI();
+        }
+        if (room.status==='talk' && room.talkUntilMs){
+          runCountdown($('talkCountdown'), room.talkUntilMs, async ()=> {
+            await endTalkAndStartVoting(); // purga talk y pasa a day
+          });
+        }
+        if (room.status==='day' && room.voteUntilMs){
+          runCountdown($('voteCountdown'), room.voteUntilMs, async ()=> {
+            await resolveVotingTimeout(room);
+          });
+        }
+      }
+
+      if (room.status==='ended'){
+        await showMafiosoAtEnd(room);
+        const adminHere = isAdmin(auth.currentUser);
+        el.newGameBtn.classList.toggle('hidden', !adminHere);
+        el.waitAdminMsg.classList.toggle('hidden', adminHere);
+      }
+
+      // Bots (admin)
+      if (isAdmin(auth.currentUser)){
+        if (room.status==='night' && room.mafiaUid && room.mafiaUid.startsWith('bot_')) botNightMove();
+        if (room.status==='day') botDayVotes();
+      }
+
+      // talk sub
+      if (unsubTalk){ unsubTalk(); unsubTalk=null; }
+      if (room.status==='talk'){
+        const qTalk = query(talkCol, orderBy('createdAt','asc'), limit(200));
+        unsubTalk = onSnapshot(qTalk, (s)=>{
+          $('talkList').innerHTML = '';
+          s.forEach(d=>{
+            const m = d.data();
+            const wrap = document.createElement('div');
+            wrap.className = 'talk-msg';
+            wrap.innerHTML = `
+              <div class="avatar-img grid place-items-center text-xs">${(m.senderName?.[0]||'?').toUpperCase()}</div>
+              <div>
+                <div class="talk-meta">${m.senderName||m.senderEmail||'—'} · ${new Date(m.createdAt||Date.now()).toLocaleTimeString('es-ES',{hour12:false})}</div>
+                <div class="talk-bubble">${escapeHtml(m.text||'')}</div>
+              </div>`;
+            $('talkList').appendChild(wrap);
+          });
+          $('talkList').scrollTop = $('talkList').scrollHeight;
+        });
+      }
+    });
+
+    unsubPlayers = onSnapshot(playersCol, (snap)=>{
+      const all = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+      MY_PLAYER = auth.currentUser ? all.find(p=>p.id===auth.currentUser.uid) : null;
+      const activeCut = Date.now()-20000; // 20s de gracia para el lobby
+      const active = all
+        .filter(p=> (p.lastSeen||0)>=activeCut)
+        .filter(p=> p.alive!==false); // en lobby todos “vivos”
+
+      // Si estamos en waiting, pintar slots; si no, crowd
+      if ((document.body.dataset.phase||'waiting')==='waiting' || $('lobby').classList.contains('grid')){
+        const top3 = active.slice(0,3);
+        fillLobbySlots(top3);
+      }
+      renderCrowd(active);
+      el.countText.textContent = `${active.length}/${REQUIRED}`;
+
+      const meAdmin = isAdmin(auth.currentUser);
+      // Solo admin ve los botones; Start solo con 3 exactos
+      el.botsBtn.classList.toggle('hidden', !meAdmin);
+      el.startBtn.classList.toggle('hidden', !(meAdmin && active.length === REQUIRED));
+    });
+
+    unsubVotes = onSnapshot(votesCol, async (snap)=>{
+      const votes = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+      const room = (await getDoc(roomRef)).data(); if (!room) return;
+      if (room.status==='day'){
+        const alive = await alivePlayers();
+        $('votesInfo').textContent = `${votes.length}/${alive.length} votos`;
+        if (alive.length>0 && votes.length===alive.length){
+          await resolveDay(votes, alive, room);
+        }
+      }
+    });
+  }
+
+  function runCountdown(elSpan, untilMs, onEnd){
+    function update(){
+      const ms = Math.max(0, untilMs - Date.now());
+      const s = Math.ceil(ms/1000);
+      elSpan.textContent = `${s}s`;
+      if (ms<=0){ clearTimers(); onEnd(); }
+    }
+    update();
+    const id = setInterval(update, 500);
+    if (elSpan.id==='talkCountdown') talkTimer = id; else voteTimer = id;
+  }
+
+  async function alivePlayers(){
+    const snap = await getDocs(playersCol);
+    const all = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    const activeCut = Date.now()-20000;
+    return all.filter(p=> (p.lastSeen||0)>=activeCut && p.alive!==false);
+  }
+
+  /* ===== Lobby actions ===== */
+  async function ensureBot(id, name){
+    const ref = doc(playersCol, id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()){
+      await setDoc(ref, {
+        uid: id, name, email: name.toLowerCase()+'@bot.local',
+        bot: true, alive: true, poison: 0, role: null,
+        lastSeen: Date.now(), joinedAt: serverTimestamp()
+      });
+    } else {
+      await updateDoc(ref, { bot:true, lastSeen: Date.now(), alive: true });
+    }
+  }
+  $('botsBtn').onclick = async ()=>{
+    if (!isAdmin(auth.currentUser)) return;
+    // Añade bots SOLO si hay huecos
+    const active = await alivePlayers();
+    if (active.length>=REQUIRED) return;
+    if (!active.find(p=>p.id===BOT_IDS.logan)) await ensureBot(BOT_IDS.logan,'Logan');
+    if (!active.find(p=>p.id===BOT_IDS.hugo )) await ensureBot(BOT_IDS.hugo ,'Hugo');
+  };
+
+  $('startBtn').onclick = async ()=>{
+    if (!isAdmin(auth.currentUser)) return;
+    const active = await alivePlayers();
+    if (active.length !== REQUIRED) {
+      alert(`Deben estar conectados exactamente ${REQUIRED} jugadores. Ahora hay ${active.length}.`);
+      return;
+    }
+    // asigna 1 mafia random
+    const mafia = rnd(active);
+    const batch = writeBatch(db);
+    for(const p of active){
+      batch.set(doc(playersCol,p.id), { role: p.id===mafia.id ? 'mafia' : 'habitante', poison: 0, alive: true }, { merge:true });
+    }
+    batch.update(roomRef, {
+      status:'reveal',
+      round: 1,
+      mafiaUid: mafia.id,
+      mafiaName: mafia.name || null,
+      nightTarget: null,
+      revealUntilMs: Date.now() + 4000,
+      talkUntilMs: null,
+      voteUntilMs: null
+    });
+    // Purga chat de charla por si quedó de antes
+    const tSnap = await getDocs(talkCol);
+    tSnap.forEach(d=> batch.delete(d.ref));
+    await batch.commit();
+  };
+
+  /* ===== Reveal ===== */
+  function showReveal(room){
+    document.body.dataset.phase='reveal';
+    $('revealOverlay').style.display = 'flex';
+    $('revealGrid').innerHTML = '';
+    const names = ['Hodely','Logan','Hugo'];
+    const cards = names.map(n=>{
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="face"><img src="${imgFor(n)}" alt="${n}" style="width:72px;height:72px;object-fit:contain;"><div style="margin-top:6px">${n}</div><div class="shine"></div></div>
+        <div class="back"><div>?</div><div class="shine"></div></div>`;
+      return card;
+    });
+    cards.forEach(c=> $('revealGrid').appendChild(c));
+    cards.forEach((c,i)=> setTimeout(()=> c.classList.add('flip'), 400 + i*400));
+    setTimeout(()=>{ $('revealOverlay').style.display='none'; }, 3900);
+  }
+
+  /* ===== Night ===== */
+  async function prepareNightUI(){
+    document.body.dataset.phase='night';
+    const alive = await alivePlayers();
+    $('targetsNight').innerHTML='';
+    selectedPoisonTarget = null;
+
+    alive.forEach(p=>{
+      const short = (p.name||'').split(' ')[0];
+      const hasImg = ['Hodely','Hugo','Logan'].includes(short);
+      const btn=document.createElement('button');
+      btn.className='glass rounded-xl p-3 text-left hover:bg-white/10 btn';
+      btn.innerHTML = `${hasImg?`<img src="${imgFor(short)}" class="avatar-img mb-2">`:''}
+        <div class="font-semibold">${p.name}</div><div class="text-xs text-zinc-300">🧪 ${p.poison||0}/3</div>`;
+      btn.onclick = ()=>{
+        selectedPoisonTarget = p;
+        [...$('targetsNight').children].forEach(c=>c.classList.remove('ring','ring-indigo-500'));
+        btn.classList.add('ring','ring-indigo-500');
+        $('poisonBtn').disabled = false;
+      };
+      $('targetsNight').appendChild(btn);
+    });
+    $('poisonBtn').disabled = true;
+  }
+
+  $('poisonBtn').onclick = async ()=>{
+    if (MY_PLAYER?.role!=='mafia' || !selectedPoisonTarget) return;
+    await applyNightPoison(selectedPoisonTarget.id);
+  };
+
+  async function applyNightPoison(targetId){
+    const room = (await getDoc(roomRef)).data();
+    if (!room || room.status!=='night') return;
+
+    const tRef = doc(playersCol, targetId);
+    const tSnap = await getDoc(tRef);
+    const cur = tSnap.exists() ? (tSnap.data().poison||0) : 0;
+
+    const batch = writeBatch(db);
+    batch.set(tRef, { poison: cur + 1 }, { merge:true });
+    // Pasamos a charla (con chat efímero)
+    batch.update(roomRef, {
+      status:'talk',
+      nightTarget: targetId,
+      talkUntilMs: Date.now() + TALK_MS,
+      voteUntilMs: null
+    });
+    // limpiar votos por si acaso
+    const vs = await getDocs(votesCol);
+    vs.forEach(d=> batch.delete(d.ref));
+    await batch.commit();
+
+    await checkDeathsAndEnd();
+  }
+
+  /* ===== Talk (chat efímero) ===== */
+  $('talkSend').onclick = async ()=>{ await sendTalkMsg(); };
+  $('talkInput').addEventListener('keydown', (e)=>{
+    if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); $('talkSend').click(); }
+    setTimeout(()=>{ $('talkInput').style.height='auto'; $('talkInput').style.height=Math.min($('talkInput').scrollHeight, 150)+'px'; },0);
+  });
+
+  async function sendTalkMsg(){
+    const u = auth.currentUser; if(!u) return;
+    const text = ($('talkInput').value||'').trim(); if(!text) return;
+    try{
+      await setDoc(doc(talkCol, `${Date.now()}_${u.uid}`), {
+        text, senderUid: u.uid, senderEmail: u.email,
+        senderName: u.displayName || NAME_FOR_EMAIL(u.email),
+        createdAt: Date.now()
+      });
+      $('talkInput').value=''; $('talkInput').style.height='auto';
+    }catch(e){ console.error(e); }
+  }
+
+  async function purgeTalkMessages(){
+    try{
+      const snap = await getDocs(query(talkCol, limit(400)));
+      const batch = writeBatch(db);
+      snap.forEach(d=> batch.delete(d.ref));
+      await batch.commit();
+    }catch(e){ console.error('purgeTalkMessages', e); }
+  }
+
+  async function endTalkAndStartVoting(){
+    if (!isAdmin(auth.currentUser)) return;
+    try{
+      await purgeTalkMessages(); // borrar charla
+      await updateDoc(roomRef, { status:'day', voteUntilMs: Date.now() + VOTE_MS });
+      await prepareDayUI();
+    }catch(e){ console.error(e); }
+  }
+
+  /* ===== Bots ===== */
+  async function botNightMove(){
+    await sleep(900 + Math.random()*800);
+    const alive = await alivePlayers();
+    if (!alive.length) return;
+    const target = rnd(alive); // el bot puede auto-seleccionarse
+    await applyNightPoison(target.id);
+  }
+
+  async function botDayVotes(){
+    const room = (await getDoc(roomRef)).data();
+    if (!room || room.status!=='day') return;
+
+    const alive = await alivePlayers();
+    const botPlayers = alive.filter(p=>p.bot);
+    for (const b of botPlayers){
+      const vRef = doc(votesCol, b.id);
+      const vSnap = await getDoc(vRef);
+      if (vSnap.exists()) continue;
+      await sleep(600 + Math.random()*900);
+      const target = rnd(alive);
+      await setDoc(vRef, { from: b.id, target: target.id, ts: Date.now() });
+    }
+  }
+
+  /* ===== Day (votación) ===== */
+  async function prepareDayUI(){
+    document.body.dataset.phase='day';
+    const alive = await alivePlayers();
+    $('voteTargets').innerHTML='';
+    alive.forEach(p=>{
+      const short = (p.name||'').split(' ')[0];
+      const hasImg = ['Hodely','Hugo','Logan'].includes(short);
+      const btn = document.createElement('button');
+      btn.className = 'glass rounded-xl p-3 text-left hover:bg-white/10 btn';
+      btn.innerHTML = `${hasImg?`<img src="${imgFor(short)}" class="avatar-img mb-2">`:''}
+        <div class="font-semibold">${p.name}</div><div class="text-xs text-zinc-300">🧪 ${p.poison||0}/3</div>`;
+      btn.onclick = async ()=>{
+        if (!MY_PLAYER || MY_PLAYER.alive===false) return;
+        await setDoc(doc(votesCol, MY_PLAYER.uid || MY_PLAYER.id), { from: (MY_PLAYER.uid||MY_PLAYER.id), target: p.id, ts: Date.now() });
+        [...$('voteTargets').children].forEach(c=>c.classList.remove('ring','ring-emerald-500'));
+        btn.classList.add('ring','ring-emerald-500');
+      };
+      $('voteTargets').appendChild(btn);
+    });
+  }
+  $('clearVoteBtn').onclick = async ()=>{
+    if (!MY_PLAYER) return;
+    try{ await deleteDoc(doc(votesCol, MY_PLAYER.uid || MY_PLAYER.id)); }catch{}
+    [...$('voteTargets').children].forEach(c=>c.classList.remove('ring','ring-emerald-500'));
+  };
+
+  async function resolveVotingTimeout(room){
+    const rs = await getDoc(roomRef); const r = rs.data();
+    if (!r || r.status!=='day') return;
+
+    const votesSnap = await getDocs(votesCol);
+    const votes = votesSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+    const alive = await alivePlayers();
+    await resolveDay(votes, alive, r);
+  }
+
+  async function resolveDay(votes, alive, room){
+    const tally = {};
+    votes.forEach(v=>{ tally[v.target] = (tally[v.target]||0)+1; });
+    let topTarget=null, topCount=0, tie=false;
+    Object.entries(tally).forEach(([tid,count])=>{
+      if (count>topCount){ topTarget=tid; topCount=count; tie=false; }
+      else if (count===topCount){ tie=true; }
+    });
+
+    const batch = writeBatch(db);
+    if (topTarget && !tie){
+      const tRef = doc(playersCol, topTarget);
+      const tSnap = await getDoc(tRef);
+      const cur = tSnap.exists() ? (tSnap.data().poison||0) : 0;
+      batch.set(tRef, { poison: cur + 2 }, { merge:true });
+    }
+    batch.update(roomRef, {
+      status:'night',
+      round: (room.round||1)+1,
+      nightTarget: null,
+      talkUntilMs: null,
+      voteUntilMs: null
+    });
+    const vs = await getDocs(votesCol);
+    vs.forEach(d=> batch.delete(d.ref));
+    await batch.commit();
+
+    await checkDeathsAndEnd();
+    await prepareNightUI();
+  }
+
+  /* ===== Fin y reset ===== */
+  async function showMafiosoAtEnd(roomData){
+    try {
+      const name = roomData?.mafiaName;
+      if (name) {
+        $('mafiosoName').textContent = name;
+        $('mafiosoLine').style.display = 'block';
+        return;
+      }
+      const snap = await getDocs(playersCol);
+      const players = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+      const maf = players.find(p=>p.role==='mafia');
+      if (maf) {
+        $('mafiosoName').textContent = maf.name || '—';
+        $('mafiosoLine').style.display = 'block';
+      }
+    } catch(e){}
+  }
+
+  async function resetRoomForNewGame(){
+    const roomSnap = await getDoc(roomRef);
+    if (!roomSnap.exists()) return;
+    const batch = writeBatch(db);
+
+    batch.update(roomRef, {
+      status: 'waiting',
+      round: 0,
+      mafiaUid: null,
+      mafiaName: null,
+      nightTarget: null,
+      revealUntilMs: null,
+      talkUntilMs: null,
+      voteUntilMs: null
+    });
+
+    const pSnap = await getDocs(playersCol);
+    pSnap.forEach(d=> batch.set(d.ref, { alive: true, poison: 0, role: null }, { merge: true }));
+
+    const vSnap = await getDocs(votesCol);
+    vSnap.forEach(d=> batch.delete(d.ref));
+
+    const tSnap = await getDocs(talkCol);
+    tSnap.forEach(d=> batch.delete(d.ref));
+
+    await batch.commit();
+  }
+
+  $('newGameBtn').onclick = async ()=>{
+    try { await resetRoomForNewGame(); }
+    catch(e){ alert('No se pudo reiniciar: '+ (e?.message||e)); }
+  };
+
+  async function checkDeathsAndEnd(){
+    const snap = await getDocs(playersCol);
+    const all = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    const batch = writeBatch(db);
+    let changed=false;
+    for(const p of all){
+      if ((p.poison||0) >= 3 && p.alive !== false){
+        batch.set(doc(playersCol,p.id), { alive:false }, { merge:true });
+        changed = true;
+      }
+    }
+    if (changed) await batch.commit();
+
+    const s2 = await getDocs(playersCol);
+    const players = s2.docs.map(d=>({ id:d.id, ...d.data() }));
+    const mafiaAlive = players.find(p=>p.role==='mafia' && p.alive!==false);
+    const mafiaAny   = players.find(p=>p.role==='mafia');
+    const civsAlive  = players.filter(p=>p.role==='habitante' && p.alive!==false);
+
+    // Condiciones de fin
+    if (!mafiaAlive){
+      await updateDoc(roomRef, { status:'ended', mafiaName: mafiaAny ? (mafiaAny.name || null) : null });
+      $('endTitle').textContent = '🏆 ¡Victoria de los Habitantes!';
+      $('endDesc').textContent = 'El mafia ha caído / fue neutralizado.';
+      await showMafiosoAtEnd({ mafiaName: mafiaAny?.name });
+      return true;
+    }
+    if (mafiaAlive && civsAlive.length <= 1){
+      await updateDoc(roomRef, { status:'ended', mafiaName: mafiaAny ? (mafiaAny.name || null) : null });
+      $('endTitle').textContent = '💀 ¡Gana la Mafia!';
+      $('endDesc').textContent = 'La mafia ha igualado/superado a los habitantes.';
+      await showMafiosoAtEnd({ mafiaName: mafiaAny?.name });
+      return true;
+    }
+    return false;
+  }
+
+  function escapeHtml(t){ return (t||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+  /* ===== Leave ===== */
+  $('leaveBtn').onclick = async ()=>{
+    const u = auth.currentUser;
+    if (!u) { location.href='chat.html'; return; }
+    try{ await deleteDoc(doc(playersCol, u.uid)); }catch{}
+    location.href='chat.html';
+  };
+
+  /* ===== Init ===== */
+  onAuthStateChanged(auth, async (user)=>{
+    if (!user){ hide(sec.loading); show(sec.needAuth); return; }
+    try{
+      document.title = 'Verd@Net — Mafia';
+      $('loadingMsg').textContent = 'Entrando a la sala…';
+      await joinRoom();
+      setupSnapshots();
+
+      const room = (await getDoc(roomRef)).data();
+      if (!room || room.status==='waiting'){ hide(sec.loading); document.body.dataset.phase='waiting'; setPhaseBg('waiting'); showSection('lobby'); }
+      else if (room.status==='reveal'){ hide(sec.loading); showReveal(room); }
+      else if (room.status==='night'){ await prepareNightUI(); hide(sec.loading); showSection('night'); }
+      else if (room.status==='talk'){ hide(sec.loading); showSection('talk'); }
+      else if (room.status==='day'){ await prepareDayUI(); hide(sec.loading); showSection('day'); }
+      else if (room.status==='ended'){
+        hide(sec.loading); showSection('end');
+        await showMafiosoAtEnd(room);
+        const adminHere = isAdmin(auth.currentUser);
+        $('newGameBtn').classList.toggle('hidden', !adminHere);
+        $('waitAdminMsg').classList.toggle('hidden', adminHere);
+      } else { hide(sec.loading); document.body.dataset.phase='waiting'; setPhaseBg('waiting'); showSection('lobby'); }
+    } catch(e){
+      console.error(e);
+      $('loadingMsg').textContent = 'Error al entrar: ' + (e?.message || e);
+    }
+  });
+</script>
+</body>
+</html>
