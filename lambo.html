@@ -1,222 +1,267 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Lamborghini Hold — Verd@Net</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Lambo Hold — Verd@Net</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{ color-scheme:dark }
+  body{ font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; }
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+  /* Background cinematic */
+  .bg {
+    position: fixed; inset: 0; z-index: -3;
+    background: url('assets/lambo/lambo_bg.jpg') center/cover no-repeat;
+    filter: saturate(1.1) contrast(1.05) brightness(.75);
+  }
+  .bg::after{
+    content:""; position:absolute; inset:0;
+    background:
+      radial-gradient(circle at 30% 20%, rgba(124,58,237,.18), transparent 45%),
+      radial-gradient(circle at 70% 70%, rgba(236,72,153,.16), transparent 55%),
+      linear-gradient(to bottom, rgba(0,0,0,.35), rgba(0,0,0,.75));
+  }
 
-  <style>
-    :root { color-scheme: dark; }
-    body{ font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; }
+  /* subtle moving noise */
+  .noise{
+    position: fixed; inset:-40px; z-index:-2; pointer-events:none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/></filter><rect width="220" height="220" filter="url(%23n)" opacity=".18"/></svg>');
+    opacity:.35; mix-blend-mode: overlay;
+    animation: drift 16s linear infinite;
+  }
+  @keyframes drift { from{ transform:translate3d(0,0,0)} to{ transform:translate3d(60px,35px,0)} }
 
-    /* Fondo */
-    .bg{
-      position:fixed; inset:0; z-index:-2;
-      background-size:cover; background-position:center;
-      filter:saturate(1.08) contrast(1.05);
-    }
-    .bg::after{
-      content:""; position:absolute; inset:0;
-      background: radial-gradient(circle at 20% 20%, rgba(255,255,255,.08), transparent 40%),
-                  radial-gradient(circle at 80% 60%, rgba(236,72,153,.10), transparent 45%),
-                  linear-gradient(180deg, rgba(0,0,0,.65), rgba(0,0,0,.85));
-    }
+  /* glass */
+  .glass{
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.10);
+    backdrop-filter: blur(10px);
+  }
 
-    /* Panel glass */
-    .glass{
-      background: rgba(255,255,255,.06);
-      border: 1px solid rgba(255,255,255,.12);
-      backdrop-filter: blur(10px);
-    }
+  /* Lambo sprite */
+  #lamboWrap{
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
 
-    /* Lambo flotando */
-    #arena{ position: relative; width: 100%; height: calc(100vh - 132px); overflow:hidden; }
-    #lambo{
-      position:absolute;
-      width: 140px;
-      height: 90px;
-      background: center/contain no-repeat;
-      filter: drop-shadow(0 16px 24px rgba(0,0,0,.55));
-      transform: translate(-50%,-50%) rotate(-6deg);
-      transition: transform 140ms ease;
-      user-select:none;
+  #lambo {
+    position: absolute;
+    width: min(36vw, 520px);
+    max-width: 520px;
+    min-width: 260px;
+    user-select: none;
+    -webkit-user-drag: none;
+    pointer-events: auto;
 
-      /* IMPORTANTÍSIMO: si no, en móvil no detecta bien */
-      touch-action: none;
-      -webkit-touch-callout: none;
-    }
-    #lambo:active{ transform: translate(-50%,-50%) rotate(4deg) scale(1.03); }
+    /* FIX: en móvil/trackpad, si no pones esto, el “hold” puede fallar */
+    touch-action: none;
 
-    /* HUD */
-    .pill{
-      background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.12);
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 12px;
-      color: rgba(255,255,255,.85);
-    }
-    .titleGlow{
-      text-shadow: 0 10px 26px rgba(236,72,153,.25), 0 0 40px rgba(124,58,237,.25);
-    }
+    transform: translate(-50%, -50%) rotate(-2deg);
+    filter:
+      drop-shadow(0 28px 50px rgba(0,0,0,.55))
+      drop-shadow(0 0 26px rgba(124,58,237,.35))
+      drop-shadow(0 0 18px rgba(236,72,153,.22));
+    transition: filter .18s ease, transform .12s ease;
+  }
+  #lambo:active{
+    transform: translate(-50%, -50%) rotate(1deg) scale(1.01);
+    filter:
+      drop-shadow(0 34px 64px rgba(0,0,0,.62))
+      drop-shadow(0 0 34px rgba(34,211,238,.35))
+      drop-shadow(0 0 22px rgba(167,139,250,.28));
+  }
 
-    /* Barra tiempo */
-    .bar{ height: 8px; border-radius: 999px; background: rgba(255,255,255,.12); overflow:hidden; }
-    .bar i{ display:block; height:100%; width:0%; background: linear-gradient(90deg, #22d3ee, #a78bfa, #ec4899); }
+  /* HUD neon line */
+  .hudLine{
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+  }
 
-    /* Overlay countdown */
-    #overlay{
-      position: fixed; inset:0; z-index:50;
-      display:none; align-items:center; justify-content:center;
-      background: radial-gradient(circle at 50% 35%, rgba(255,255,255,.16), rgba(0,0,0,.85));
-      backdrop-filter: blur(8px);
-    }
-    .countNum{
-      font-weight: 900;
-      font-size: clamp(72px, 18vw, 180px);
-      letter-spacing:-.06em;
-      color: rgba(255,255,255,.95);
-      text-shadow: 0 16px 40px rgba(0,0,0,.55);
-      transform: translateY(-8px);
-    }
-    .subGlow{
-      color: rgba(255,255,255,.8);
-      text-shadow: 0 10px 30px rgba(0,0,0,.55);
-    }
+  /* countdown splash */
+  #countSplash{
+    position: fixed; inset: 0; display:none; place-items:center;
+    z-index: 50;
+    background: rgba(255,255,255,.02);
+    backdrop-filter: blur(6px);
+  }
+  .bigNum{
+    font-size: clamp(56px, 9vw, 120px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    text-shadow: 0 20px 60px rgba(0,0,0,.6);
+  }
+  .pulseRing{
+    width: clamp(220px, 34vw, 520px);
+    aspect-ratio: 1/1;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.16);
+    box-shadow: 0 0 0 1px rgba(124,58,237,.25), 0 0 50px rgba(124,58,237,.22);
+    animation: ring 1s ease-in-out infinite;
+  }
+  @keyframes ring { 0%{ transform:scale(.98); opacity:.8 } 50%{ transform:scale(1.02); opacity:1 } 100%{ transform:scale(.98); opacity:.8 } }
 
-    /* Tabla top */
-    .row{
-      display:flex; align-items:center; justify-content:space-between;
-      gap: 10px;
-      padding: 8px 10px;
-      border-radius: 14px;
-      border: 1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.04);
-    }
-    .dot{
-      width:10px; height:10px; border-radius:999px;
-      background: rgba(255,255,255,.25);
-      box-shadow: 0 0 0 1px rgba(255,255,255,.12);
-    }
-    .dot.on{ background: #22c55e; box-shadow: 0 0 0 1px rgba(34,197,94,.25), 0 0 18px rgba(34,197,94,.25); }
-    .dot.dead{ background: #f43f5e; box-shadow: 0 0 0 1px rgba(244,63,94,.25), 0 0 18px rgba(244,63,94,.22); }
-  </style>
+  /* status pill */
+  .pill{
+    display:inline-flex; align-items:center; gap:.5rem;
+    padding:.35rem .7rem; border-radius: 999px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.10);
+  }
+
+  /* small “spark” dots */
+  .sparks{
+    position: fixed; inset:0; z-index:-1; pointer-events:none;
+    background:
+      radial-gradient(circle at 18% 20%, rgba(255,255,255,.10), transparent 22%),
+      radial-gradient(circle at 66% 26%, rgba(255,255,255,.08), transparent 20%),
+      radial-gradient(circle at 74% 78%, rgba(255,255,255,.08), transparent 24%),
+      radial-gradient(circle at 28% 72%, rgba(255,255,255,.07), transparent 22%);
+    filter: blur(0px);
+    opacity: .7;
+  }
+
+  /* toast */
+  #toast{
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    z-index: 60; display:none;
+  }
+</style>
 </head>
 
-<body class="min-h-screen text-white bg-neutral-950">
-  <!-- === CAMBIA AQUÍ LOS ASSETS ===
-    Fondo:  assets/backgrounds/lambo_bg.jpg
-    Lambo:  assets/lambo/lambo.png
-  -->
-  <div id="bg" class="bg"></div>
+<body class="min-h-screen text-white">
+<div class="bg"></div>
+<div class="noise"></div>
+<div class="sparks"></div>
 
-  <div class="max-w-6xl mx-auto px-4 pt-4 pb-2">
-    <header class="glass rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-2xl bg-white/10 border border-white/15 grid place-items-center font-black">VN</div>
-        <div>
-          <div class="text-xl md:text-2xl font-extrabold titleGlow">Lamborghini Hold</div>
-          <div id="meLine" class="text-sm text-white/70">Sin sesión…</div>
-        </div>
+<div class="max-w-6xl mx-auto p-4 md:p-8 space-y-4 relative z-10">
+
+  <!-- Header -->
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+    <div>
+      <div class="text-xs text-white/60 tracking-widest">VERD@NET · GAME MODE</div>
+      <h1 class="text-2xl md:text-3xl font-extrabold">Lambo Hold</h1>
+      <div class="text-sm text-white/65 mt-1" id="meLine">Sin sesión</div>
+    </div>
+
+    <div class="glass rounded-2xl p-3 flex flex-wrap items-center gap-2">
+      <span class="pill text-xs"><span class="opacity-70">Sala</span> <b id="roomLine">—</b></span>
+      <span class="pill text-xs"><span class="opacity-70">Ronda</span> <b id="roundLine">0</b></span>
+      <span class="pill text-xs"><span class="opacity-70">Tiempo</span> <b id="timeLine">0.0s</b></span>
+      <span class="pill text-xs"><span class="opacity-70">Modo</span> <b id="modeLine">NORMAL</b></span>
+      <span class="pill text-xs"><span class="opacity-70">Estado</span> <b id="stateLine">waiting</b></span>
+    </div>
+  </header>
+
+  <!-- Auth panel -->
+  <section id="authPanel" class="glass rounded-2xl p-4 hidden">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <div class="font-semibold">No has iniciado sesión</div>
+        <div class="text-sm text-white/70">Entra con Google para jugar</div>
+      </div>
+      <button id="btnLogin" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20">Iniciar sesión</button>
+    </div>
+  </section>
+
+  <!-- Admin Bar -->
+  <section id="adminBar" class="glass rounded-2xl p-3 hidden">
+    <div class="flex flex-col md:flex-row gap-2 md:items-center">
+      <div class="flex items-center gap-2">
+        <span class="text-xs px-2 py-1 rounded bg-emerald-500/20 border border-emerald-400/30">Admin</span>
+
+        <select id="modeSelect" class="px-3 py-2 rounded-xl bg-white/10 border border-white/10 text-sm">
+          <option value="normal">Modo NORMAL (quieto)</option>
+          <option value="moving">Modo MOVING (se mueve + acelera)</option>
+        </select>
+
+        <button id="btnStart" class="px-4 py-2 rounded-xl bg-indigo-600/90 hover:bg-indigo-600 text-sm font-semibold">
+          Empezar ronda
+        </button>
+        <button id="btnStop" class="px-4 py-2 rounded-xl bg-rose-600/85 hover:bg-rose-600 text-sm font-semibold">
+          Detener → Lobby
+        </button>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2 justify-start md:justify-end">
-        <span id="roomPill" class="pill">Sala: sala-unica</span>
-        <span id="modePill" class="pill">Modo: Normal</span>
-        <span id="roundPill" class="pill">Ronda: 0</span>
-        <span id="timerPill" class="pill">Tiempo: —</span>
-        <span id="goalPill" class="pill">Meta: 5 pts</span>
+      <div class="md:ml-auto flex items-center gap-2 text-xs text-white/70">
+        <span class="pill">Mínimo: <b>2 jugadores</b></span>
+        <span class="pill">Mantén pulsado el lambo o pierdes</span>
       </div>
-    </header>
+    </div>
+  </section>
 
-    <!-- Admin bar -->
-    <section id="adminBar" class="hidden glass rounded-2xl p-3 mt-3 flex flex-wrap gap-2 items-center">
-      <span class="text-xs px-2 py-1 rounded bg-amber-400/15 border border-amber-300/25">Admin</span>
+  <!-- Lobby -->
+  <section id="lobby" class="glass rounded-2xl p-4">
+    <div class="flex items-center justify-between">
+      <h2 class="font-semibold text-lg">Sala de espera</h2>
+      <div class="text-sm text-white/70"><span id="lobbyCount">0</span> jugadores</div>
+    </div>
 
-      <button id="btnStart2" class="px-3 py-2 rounded-xl bg-emerald-500/80 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-500">
-        Empezar (min 2)
-      </button>
+    <div class="hudLine my-3"></div>
 
-      <button id="btnStop" class="px-3 py-2 rounded-xl bg-rose-600/80 hover:bg-rose-600">
-        Detener y volver lobby
-      </button>
+    <div id="playersRow" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
 
-      <button id="btnMode" class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20">
-        Cambiar modo (Normal/Moving)
-      </button>
+    <p class="mt-3 text-xs text-white/60">
+      Entra mínimo <b>2</b>. Cuando empiece, saldrá <b>3…2…1</b> y el lambo aparecerá.  
+      Si sueltas → KO. Si pasa la cuenta atrás y no estás pulsando → KO. Último en pie gana la ronda.
+    </p>
+  </section>
 
-      <button id="btnResetScores" class="ml-auto px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20">
-        Reset puntos
-      </button>
-    </section>
+  <!-- Scoreboard -->
+  <section id="scoreboard" class="glass rounded-2xl p-4 hidden">
+    <div class="flex items-center justify-between">
+      <h2 class="font-semibold text-lg">Top (Puntos)</h2>
+      <div class="text-sm text-white/70">Puntos por ganar rondas</div>
+    </div>
+    <div class="hudLine my-3"></div>
+    <div id="scoreGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+  </section>
 
-    <!-- Lobby + Leaderboard -->
-    <div class="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-3 mt-3">
-      <aside class="glass rounded-2xl p-4">
-        <div class="flex items-center justify-between mb-2">
-          <div class="font-semibold">Jugadores</div>
-          <div id="lobbyCount" class="text-sm text-white/70">0 online</div>
-        </div>
+  <!-- Round result -->
+  <section id="result" class="glass rounded-2xl p-4 hidden text-center">
+    <h2 class="text-xl font-extrabold" id="winnerTitle">—</h2>
+    <p class="text-white/70 mt-1" id="winnerSub">—</p>
+    <div class="mt-4 flex justify-center gap-2">
+      <button id="btnReady" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20">Volver al lobby</button>
+    </div>
+  </section>
+</div>
 
-        <div id="playersList" class="space-y-2"></div>
+<!-- Floating lambo -->
+<div id="lamboWrap" class="hidden">
+  <img id="lambo" src="assets/lambo/lambo.png" alt="Lamborghini" />
+</div>
 
-        <div class="mt-4">
-          <div class="text-xs text-white/60 mb-1">Tiempo de ronda</div>
-          <div class="bar"><i id="timeBar"></i></div>
-          <div class="mt-2 text-xs text-white/60">
-            Regla: si termina el <b>3..2..1</b> y NO estás agarrando el lambo → <b>KO</b>.
-          </div>
-        </div>
-
-        <div id="hint" class="mt-4 text-xs text-white/60">
-          Tip: Mantén pulsado el lambo (ratón o dedo). Si lo sueltas, pierdes la ronda.
-        </div>
-      </aside>
-
-      <!-- Arena -->
-      <main class="glass rounded-2xl p-3 relative">
-        <div class="flex items-center justify-between px-2 pb-2">
-          <div id="statusLine" class="text-sm text-white/80">Estado: lobby</div>
-          <div class="text-xs text-white/60">Aguanta. No parpadees. 🏎️</div>
-        </div>
-
-        <div id="arena" class="rounded-2xl border border-white/10 bg-white/5">
-          <div id="lambo" aria-label="Lambo"></div>
-        </div>
-      </main>
+<!-- Countdown overlay -->
+<div id="countSplash">
+  <div class="relative grid place-items-center">
+    <div class="pulseRing absolute"></div>
+    <div class="text-center relative">
+      <div class="text-xs tracking-widest text-white/70 mb-2">PREPÁRATE</div>
+      <div id="countNum" class="bigNum">3</div>
+      <div class="text-sm text-white/70 mt-2">Pon el ratón encima y <b>mantén pulsado</b>.</div>
     </div>
   </div>
+</div>
 
-  <!-- Countdown overlay -->
-  <div id="overlay">
-    <div class="text-center">
-      <div id="countNum" class="countNum">3</div>
-      <div id="countSub" class="subGlow text-base md:text-lg -mt-4">¡Agárralo YA!</div>
-    </div>
-  </div>
+<!-- Toast -->
+<div id="toast" class="glass rounded-2xl px-4 py-3 text-sm">
+  <span id="toastText">—</span>
+</div>
 
 <script type="module">
-  // =========================
   // Firebase SDKs
-  // =========================
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+  import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
   import {
-    getAuth, onAuthStateChanged,
-    GoogleAuthProvider, signInWithPopup,
-    signInAnonymously
-  } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-  import {
-    getFirestore,
-    doc, getDoc, setDoc, updateDoc, onSnapshot,
-    collection, getDocs, deleteDoc, serverTimestamp
+    getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
+    collection, getDocs, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
-  // =========================
-  // Config
-  // =========================
+  // ---- CONFIG (tu proyecto) ----
   const firebaseConfig = {
     apiKey: "AIzaSyCkNI9EEw_4Rf8f4IqygydRTbHSHBAYnKs",
     authDomain: "klex-28ea5.firebaseapp.com",
@@ -228,31 +273,19 @@
     measurementId: "G-DQ6E8NBVGR"
   };
 
-  // Admin (tu email real)
+  const ROOM_ID = "sala-unica";
   const ADMIN_EMAIL = "hodelyproductions@gmail.com";
 
-  // Sala
-  const ROOM_ID = "sala-unica";
+  // timings
+  const COUNTDOWN_S = 3;
+  const ROUND_SECONDS = 45;
+  const ACCEL_EVERY_S = 15;
+  const HEARTBEAT_MS = 4000;
+  const LOBBY_TIMEOUT_MS = 20000;
 
-  // Assets (pon tus rutas aquí)
-  const BACKGROUND_URL = "assets/backgrounds/lambo_bg.jpg";
-  const LAMBO_IMG      = "assets/lambo/lambo.png";
+  // FIX: “árbitro” (admin) revisa holding para todos
+  const ENFORCE_MS = 220;
 
-  // Gameplay
-  const MIN_PLAYERS = 2;
-  const ROUND_SECONDS = 35;        // duración base
-  const COUNTDOWN_SECONDS = 3;     // 3..2..1
-  const SPEED_AFTER = 15;          // a partir de 15s, acelera (modo moving)
-  const HEARTBEAT_MS = 5000;
-  const FAST_STATE_MS = 260;       // holding updates
-  const LOBBY_TIMEOUT_MS = 20000;  // online si lastSeen < 20s
-  const ADMIN_TICK_MS = 200;       // movimiento (admin)
-
-  const GOAL_POINTS = 5;
-
-  // =========================
-  // App init
-  // =========================
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db   = getFirestore(app);
@@ -260,187 +293,108 @@
   const roomRef = doc(db, "games", "lambo", "rooms", ROOM_ID);
   const playersCol = collection(roomRef, "players");
 
-  // =========================
-  // DOM
-  // =========================
+  // ---- UI ----
   const $ = (s)=>document.querySelector(s);
-  const bg = $("#bg");
-  const meLine = $("#meLine");
-  const adminBar = $("#adminBar");
-  const btnStart2 = $("#btnStart2");
-  const btnStop = $("#btnStop");
-  const btnMode = $("#btnMode");
-  const btnResetScores = $("#btnResetScores");
+  const meLine=$("#meLine"), roomLine=$("#roomLine"), roundLine=$("#roundLine"),
+        timeLine=$("#timeLine"), modeLine=$("#modeLine"), stateLine=$("#stateLine");
+  const authPanel=$("#authPanel"), btnLogin=$("#btnLogin");
+  const adminBar=$("#adminBar"), btnStart=$("#btnStart"), btnStop=$("#btnStop"), modeSelect=$("#modeSelect");
+  const lobby=$("#lobby"), lobbyCount=$("#lobbyCount"), playersRow=$("#playersRow");
+  const scoreboard=$("#scoreboard"), scoreGrid=$("#scoreGrid");
+  const result=$("#result"), winnerTitle=$("#winnerTitle"), winnerSub=$("#winnerSub"), btnReady=$("#btnReady");
+  const lamboWrap=$("#lamboWrap"), lambo=$("#lambo");
+  const countSplash=$("#countSplash"), countNum=$("#countNum");
+  const toast=$("#toast"), toastText=$("#toastText");
 
-  const roomPill = $("#roomPill");
-  const modePill = $("#modePill");
-  const roundPill = $("#roundPill");
-  const timerPill = $("#timerPill");
-  const goalPill = $("#goalPill");
-
-  const lobbyCount = $("#lobbyCount");
-  const playersList = $("#playersList");
-  const statusLine = $("#statusLine");
-
-  const arena = $("#arena");
-  const lambo = $("#lambo");
-  const timeBar = $("#timeBar");
-
-  const overlay = $("#overlay");
-  const countNum = $("#countNum");
-  const countSub = $("#countSub");
-
-  // Assets apply
-  bg.style.backgroundImage = `url('${BACKGROUND_URL}')`;
-  lambo.style.backgroundImage = `url('${LAMBO_IMG}')`;
-
-  roomPill.textContent = `Sala: ${ROOM_ID}`;
-  goalPill.textContent = `Meta: ${GOAL_POINTS} pts`;
-
-  // =========================
-  // State
-  // =========================
-  let me = null;
-  let isAdmin = false;
-  let room = null;
-  let cachedPlayers = {};
-  let activePlayers = [];
-
-  // holding local (para no depender del lag)
-  let holding = false;
-
-  // timers
-  let tFast = null;
-  let tAdminTick = null;
-  let tHeartbeat = null;
-
-  // =========================
-  // Auth helpers
-  // =========================
   const provider = new GoogleAuthProvider();
 
-  // Si vienes desde tu chat, ya estarás logeado.
-  // Si NO, entramos anónimo para que el juego funcione igual.
-  async function ensureSignedIn(){
-    if(auth.currentUser) return;
-    try { await signInAnonymously(auth); }
-    catch { await signInWithPopup(auth, provider); }
-  }
-  ensureSignedIn();
+  // ---- State ----
+  let me=null, isAdmin=false;
+  let meRef=null; // FIX: guardamos referencia del doc del jugador
+  let cachedPlayers = {};
+  let roomState = { status:'waiting', round:0, mode:'normal', startedAt:null, countdownAt:null };
+  let timers = { heartbeat:null, frame:null, roundTick:null, countdown:null, enforce:null };
+  let holding = false;
+
+  // lambo movement
+  let lamboPos = { x: 50, y: 52 };
+  let vel = { x: 0.18, y: 0.12 };
+  let accelLevel = 0;
+
+  btnLogin?.addEventListener("click", ()=>signInWithPopup(auth, provider));
 
   onAuthStateChanged(auth, async (user)=>{
     if(!user){
-      meLine.textContent = "Sin sesión…";
+      authPanel.classList.remove("hidden");
+      meLine.textContent = "Sin sesión";
       return;
     }
+    authPanel.classList.add("hidden");
+    me = { uid:user.uid, email:user.email||"", name:user.displayName || (user.email?.split("@")[0]) || "Jugador" };
+    isAdmin = (me.email === ADMIN_EMAIL);
 
-    const email = user.email || "";
-    const name =
-      user.displayName ||
-      (email ? email.split("@")[0] : "Anon") ||
-      "Jugador";
+    meLine.textContent = `Tú: ${me.name}${isAdmin ? " (admin)" : ""}`;
+    roomLine.textContent = ROOM_ID;
+    if(isAdmin) adminBar.classList.remove("hidden");
 
-    me = { uid:user.uid, email, name, anon: user.isAnonymous };
-    isAdmin = (!!email && email === ADMIN_EMAIL);
-
-    meLine.textContent = `Tú: ${me.name}${me.anon ? " (anon)" : ""}${isAdmin ? " (admin)" : ""}`;
-    adminBar.classList.toggle("hidden", !isAdmin);
-
-    await ensureRoomExists();
+    await ensureRoom();
     await joinPresence();
     attachListeners();
     wireControls();
   });
 
-  // =========================
-  // Room bootstrap
-  // =========================
-  async function ensureRoomExists(){
+  async function ensureRoom(){
     const snap = await getDoc(roomRef);
     if(!snap.exists()){
-      if(!isAdmin){
-        // Si no existe y no eres admin, no la creamos.
-        // (Puedes crearla entrando como admin una vez.)
-        return;
-      }
+      if(!isAdmin) return;
       await setDoc(roomRef, {
-        status: "lobby",          // lobby | countdown | playing | end
-        mode: "still",            // still | moving
-        round: 0,
-        goalPoints: GOAL_POINTS,
-        countdownAt: null,
-        startedAt: null,
-        roundEndsAt: null,
-        winnerUid: null,
-        winnerName: null,
-
-        // pos y velocidad del lambo (admin)
-        lamboX: 50,
-        lamboY: 55,
-        lamboVX: 0.22,
-        lamboVY: 0.18,
-
-        adminUid: me.uid,
-        updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp()
+        status:'waiting', round:0, mode:'normal',
+        countdownAt:null, startedAt:null,
+        winnerUid:null, winnerName:null,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp()
       });
-    } else if(isAdmin){
-      const r = snap.data();
-      if(!r.adminUid || r.adminUid !== me.uid){
-        await updateDoc(roomRef, { adminUid: me.uid, updatedAt: serverTimestamp() });
-      }
     }
   }
 
-  // =========================
-  // Presence
-  // =========================
   async function joinPresence(){
-    const meRef = doc(playersCol, me.uid);
+    meRef = doc(playersCol, me.uid);
 
     await setDoc(meRef, {
       uid: me.uid,
       name: me.name,
-      email: me.email || null,
-      bot: false,
-
-      score: 0,
+      email: me.email,
       alive: true,
+
+      // FIX: holding real + marca de tiempo de última acción
       holding: false,
+      holdAt: Date.now(),
 
+      points: 0,
       lastSeen: Date.now()
-    }, { merge: true });
+    }, { merge:true });
 
-    clearInterval(tHeartbeat);
-    tHeartbeat = setInterval(async ()=>{
+    clearInterval(timers.heartbeat);
+    timers.heartbeat = setInterval(async ()=>{
       try{
-        await updateDoc(meRef, { lastSeen: Date.now() });
+        await updateDoc(meRef, { lastSeen: Date.now(), holding: holding, holdAt: Date.now() });
       }catch{}
     }, HEARTBEAT_MS);
-
-    // Fast updates: holding + lastSeen (cuando hay partida)
-    clearInterval(tFast);
-    tFast = setInterval(async ()=>{
-      if(!room) return;
-      if(!me) return;
-      const status = room.status;
-      const shouldSend = (status === "countdown" || status === "playing");
-      if(!shouldSend) return;
-
-      try{
-        await updateDoc(meRef, { holding: !!holding, lastSeen: Date.now() });
-      }catch{}
-    }, FAST_STATE_MS);
   }
 
-  // =========================
-  // Listeners
-  // =========================
   function attachListeners(){
     onSnapshot(roomRef, (snap)=>{
       if(!snap.exists()) return;
-      room = snap.data();
-      renderRoom(room);
+      roomState = snap.data();
+      renderRoom(roomState);
+
+      // FIX: admin arranca/para el “árbitro”
+      if(isAdmin){
+        if(roomState.status === 'playing' && roomState.startedAt){
+          startEnforcer();
+        } else {
+          stopEnforcer();
+        }
+      }
     });
 
     onSnapshot(playersCol, (qs)=>{
@@ -449,441 +403,485 @@
       const act = [];
       qs.forEach(d=>{
         const p = d.data();
-        cachedPlayers[p.uid] = p;
-        if(now - (p.lastSeen||0) <= LOBBY_TIMEOUT_MS) act.push(p);
+        if(now - (p.lastSeen||0) <= LOBBY_TIMEOUT_MS){
+          cachedPlayers[p.uid]=p;
+          act.push(p);
+        }
       });
-      activePlayers = act.sort((a,b)=> (b.score||0) - (a.score||0));
-      renderPlayers(activePlayers);
-      if(isAdmin) updateAdminButtons();
+      renderLobby(act);
+      renderScore(act);
     });
   }
 
-  // =========================
-  // UI render
-  // =========================
-  function renderPlayers(list){
-    lobbyCount.textContent = `${list.length} online`;
-    playersList.innerHTML = "";
-
-    list.forEach(p=>{
-      const row = document.createElement("div");
-      row.className = "row";
-
-      const dot = document.createElement("div");
-      dot.className = "dot " + (p.alive ? "on" : "dead");
-
-      const left = document.createElement("div");
-      left.className = "flex items-center gap-2 min-w-0";
-      const name = document.createElement("div");
-      name.className = "font-semibold truncate";
-      name.textContent = p.name || "Jugador";
-
-      const tag = document.createElement("div");
-      tag.className = "text-xs text-white/60";
-      tag.textContent =
-        (p.uid === me?.uid ? "tú" : "") +
-        (p.bot ? (p.uid === me?.uid ? " · bot" : "bot") : "");
-
-      left.append(dot, (()=>{
-        const wrap = document.createElement("div");
-        wrap.className="min-w-0";
-        wrap.append(name, tag);
-        return wrap;
-      })());
-
-      const right = document.createElement("div");
-      right.className = "flex items-center gap-2";
-      const score = document.createElement("div");
-      score.className = "pill";
-      score.textContent = `${p.score||0} pts`;
-
-      const hold = document.createElement("div");
-      hold.className = "text-xs text-white/60";
-      hold.textContent = (room && (room.status==="countdown" || room.status==="playing"))
-        ? (p.holding ? "AGARRA" : "SUELTO")
-        : "";
-
-      right.append(hold, score);
-      row.append(left, right);
-      playersList.appendChild(row);
-    });
-  }
-
-  function renderRoom(r){
-    const modeLabel = r.mode === "moving" ? "Moving" : "Normal";
-    modePill.textContent = `Modo: ${modeLabel}`;
-    roundPill.textContent = `Ronda: ${r.round || 0}`;
-    goalPill.textContent = `Meta: ${(r.goalPoints||GOAL_POINTS)} pts`;
-
-    statusLine.textContent = `Estado: ${r.status}`;
-
-    // Coloca lambo por % en el arena
-    placeLambo(r.lamboX ?? 50, r.lamboY ?? 55);
-
-    // overlay countdown
-    if(r.status === "countdown" && r.countdownAt){
-      overlay.style.display = "flex";
-      const ms = r.countdownAt - Date.now();
-      const s = Math.max(0, Math.ceil(ms / 1000));
-      countNum.textContent = String(Math.min(COUNTDOWN_SECONDS, s));
-      countSub.textContent = "¡Agárralo YA! (puedes mantener durante el 3..2..1)";
-    } else {
-      overlay.style.display = "none";
-    }
-
-    // timer
-    if(r.status === "playing" && r.roundEndsAt && r.startedAt){
-      const leftMs = r.roundEndsAt - Date.now();
-      const left = Math.max(0, Math.ceil(leftMs/1000));
-      timerPill.textContent = `Tiempo: ${left}s`;
-
-      const total = ROUND_SECONDS;
-      const prog = Math.min(1, Math.max(0, (total - left) / total));
-      timeBar.style.width = `${prog*100}%`;
-    } else {
-      timerPill.textContent = "Tiempo: —";
-      timeBar.style.width = "0%";
-    }
-  }
-
-  function placeLambo(xPct, yPct){
-    const rect = arena.getBoundingClientRect();
-    // convert % to px
-    const x = rect.width  * (xPct/100);
-    const y = rect.height * (yPct/100);
-    lambo.style.left = `${x}px`;
-    lambo.style.top  = `${y}px`;
-  }
-
-  function updateAdminButtons(){
-    const onlineCount = activePlayers.length;
-    const canStart = onlineCount >= MIN_PLAYERS && (room?.status === "lobby" || room?.status === "end");
-    btnStart2.disabled = !canStart;
-  }
-
-  // =========================
-  // Controls (HOLD FIX)
-  // =========================
   function wireControls(){
-    // Pointer hold with capture (fix total)
-    const down = (e)=>{
-      // Permitimos agarrar tanto en countdown como en playing
-      if(!room) return;
-      if(room.status !== "countdown" && room.status !== "playing") return;
-
-      holding = true;
-
-      // Captura: aunque el lambo se mueva o el dedo se salga un poco, seguimos “holding”
-      try{ e.target.setPointerCapture?.(e.pointerId); }catch{}
-
-      e.preventDefault?.();
-    };
-    const up = ()=>{
-      if(!room) return;
-      // Si sueltas en countdown o playing, te contará como suelto
-      if(room.status !== "countdown" && room.status !== "playing") return;
-      holding = false;
-    };
-
-    lambo.addEventListener("pointerdown", down);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", ()=>{ holding=false; });
-    window.addEventListener("blur", ()=>{ holding=false; });
-
-    // Reposicionar lambo al resize
-    window.addEventListener("resize", ()=>{
-      if(!room) return;
-      placeLambo(room.lamboX ?? 50, room.lamboY ?? 55);
+    btnStart?.addEventListener("click", startRoundAsAdmin);
+    btnStop?.addEventListener("click", stopToLobbyAsAdmin);
+    btnReady?.addEventListener("click", ()=> {
+      result.classList.add("hidden");
+      lobby.classList.remove("hidden");
+      scoreboard.classList.remove("hidden");
     });
 
-    // Admin controls
-    btnMode.addEventListener("click", async ()=>{
-      if(!isAdmin || !room) return;
-      const next = (room.mode === "moving") ? "still" : "moving";
-      await updateDoc(roomRef, { mode: next, updatedAt: serverTimestamp() });
-    });
+    // ==========================
+    // FIX TOTAL: HOLD DETECTION
+    // ==========================
+    const setHolding = async (val, e)=>{
+      // Permite agarrar durante countdown y playing
+      if(roomState.status !== 'playing') return;
 
-    btnStart2.addEventListener("click", async ()=>{
-      if(!isAdmin || !room) return;
-      // recalcula online
-      const now = Date.now();
-      const qs = await getDocs(playersCol);
-      const online = [];
-      qs.forEach(d=>{
-        const p=d.data();
-        if(now-(p.lastSeen||0) <= LOBBY_TIMEOUT_MS && !p.bot) online.push(p);
-      });
-      if(online.length < MIN_PLAYERS){
-        alert(`Necesitas mínimo ${MIN_PLAYERS} jugadores online.`);
-        return;
-      }
-      await startRound();
-    });
+      holding = val;
 
-    btnStop.addEventListener("click", async ()=>{
-      if(!isAdmin || !room) return;
-      await stopToLobby();
-    });
+      // pointer capture para que si el lambo se mueve o te sales 2px no pierdas el hold
+      try { if(e?.pointerId != null) lambo.setPointerCapture(e.pointerId); } catch {}
 
-    btnResetScores.addEventListener("click", async ()=>{
-      if(!isAdmin) return;
-      const qs = await getDocs(playersCol);
-      for(const d of qs.docs){
-        await updateDoc(d.ref, { score:0, alive:true, holding:false });
-      }
-      await updateDoc(roomRef, { status:"lobby", round:0, winnerUid:null, winnerName:null, updatedAt: serverTimestamp() });
-    });
-  }
-
-  // =========================
-  // Admin: round flow
-  // =========================
-  async function stopToLobby(){
-    // Para y vuelve a lobby
-    await updateDoc(roomRef, {
-      status: "lobby",
-      countdownAt: null,
-      startedAt: null,
-      roundEndsAt: null,
-      winnerUid: null,
-      winnerName: null,
-      updatedAt: serverTimestamp()
-    });
-
-    // resetea estado jugadores (no puntos)
-    const qs = await getDocs(playersCol);
-    for(const d of qs.docs){
-      await updateDoc(d.ref, { alive:true, holding:false });
-    }
-    stopAdminTick();
-  }
-
-  async function startRound(){
-    // reset alive/holding
-    const qs = await getDocs(playersCol);
-    for(const d of qs.docs){
-      const p = d.data();
-      // Solo los online cuentan para ronda, pero dejamos doc igualmente
-      await updateDoc(d.ref, { alive:true, holding:false });
-    }
-
-    // randomize lambo pos
-    const lx = 15 + Math.random()*70;
-    const ly = 20 + Math.random()*60;
-
-    const countdownAt = Date.now() + COUNTDOWN_SECONDS*1000;
-    const startedAt = countdownAt;
-    const roundEndsAt = startedAt + ROUND_SECONDS*1000;
-
-    await updateDoc(roomRef, {
-      status: "countdown",
-      countdownAt,
-      startedAt: null,
-      roundEndsAt: null,
-      winnerUid: null,
-      winnerName: null,
-
-      lamboX: lx,
-      lamboY: ly,
-      lamboVX: 0.22 + Math.random()*0.12,
-      lamboVY: 0.18 + Math.random()*0.12,
-      updatedAt: serverTimestamp()
-    });
-
-    // En el momento exacto que acaba el countdown: arrancamos playing y hacemos KO a los que no agarran
-    setTimeout(async ()=>{
-      // start playing
-      const rs = await getDoc(roomRef);
-      if(!rs.exists()) return;
-      const r = rs.data();
-      if(r.status !== "countdown") return; // alguien lo detuvo
-
-      await updateDoc(roomRef, {
-        status: "playing",
-        countdownAt: null,
-        startedAt,
-        roundEndsAt,
-        round: (r.round||0) + 1,
-        updatedAt: serverTimestamp()
-      });
-
-      // KO si NO está holding justo al empezar (con gracia)
-      setTimeout(async ()=>{
-        try{
-          const now = Date.now();
-          const qs2 = await getDocs(playersCol);
-          for(const d of qs2.docs){
-            const p = d.data();
-            if(now-(p.lastSeen||0) > LOBBY_TIMEOUT_MS) continue; // fuera
-            // Para ti, usamos estado local (cero lag)
-            const isHolding = (p.uid === me?.uid) ? holding : !!p.holding;
-            if(!isHolding){
-              await updateDoc(d.ref, { alive:false, holding:false });
-            }
-          }
-          await maybeResolveRound(); // por si alguien cae instant
-          startAdminTick();
-        }catch{}
-      }, 250);
-    }, COUNTDOWN_SECONDS*1000);
-  }
-
-  function startAdminTick(){
-    if(!isAdmin) return;
-    stopAdminTick();
-
-    tAdminTick = setInterval(async ()=>{
+      // escribe inmediatamente a Firestore (sin esperar al heartbeat)
       try{
-        const rs = await getDoc(roomRef);
-        if(!rs.exists()) return;
-        const r = rs.data();
-        if(r.status !== "playing"){
-          stopAdminTick();
-          return;
+        if(meRef){
+          await updateDoc(meRef, { holding: holding, holdAt: Date.now(), lastSeen: Date.now() });
         }
+      }catch{}
+    };
 
-        // 1) movimiento si modo moving
-        if(r.mode === "moving"){
-          const rect = arena.getBoundingClientRect();
-          const w = rect.width, h = rect.height;
+    lambo.addEventListener("pointerdown", (e)=>{
+      // IMPORTANTE: durante countdown también cuenta
+      if(roomState.status !== 'playing') return;
+      setHolding(true, e);
+      e.preventDefault?.();
+    });
 
-          // convert current % to px
-          let x = (r.lamboX ?? 50) / 100 * w;
-          let y = (r.lamboY ?? 55) / 100 * h;
-          let vx = (r.lamboVX ?? 0.22);
-          let vy = (r.lamboVY ?? 0.18);
+    window.addEventListener("pointerup", ()=>{
+      if(roomState.status !== 'playing') return;
+      setHolding(false);
+    });
 
-          // Acelera a partir de 15s (más tiempo = más rápido)
-          const elapsed = Math.max(0, Math.floor((Date.now() - (r.startedAt||Date.now()))/1000));
-          const boost = elapsed > SPEED_AFTER ? (elapsed - SPEED_AFTER) * 0.012 : 0; // aceleración progresiva
-          const speedMul = 1 + boost;
+    window.addEventListener("pointercancel", ()=>{
+      if(roomState.status !== 'playing') return;
+      setHolding(false);
+    });
 
-          const pxStep = 6.0 * speedMul;
-          x += vx * pxStep;
-          y += vy * pxStep;
-
-          // límites (dejamos margen del tamaño del lambo)
-          const marginX = 70, marginY = 55;
-          if(x < marginX){ x = marginX; vx = Math.abs(vx); }
-          if(x > w - marginX){ x = w - marginX; vx = -Math.abs(vx); }
-          if(y < marginY){ y = marginY; vy = Math.abs(vy); }
-          if(y > h - marginY){ y = h - marginY; vy = -Math.abs(vy); }
-
-          const xPct = (x / w) * 100;
-          const yPct = (y / h) * 100;
-
-          await updateDoc(roomRef, {
-            lamboX: xPct,
-            lamboY: yPct,
-            lamboVX: vx,
-            lamboVY: vy,
-            updatedAt: serverTimestamp()
-          });
-        }
-
-        // 2) KO a los que sueltan (en servidor)
-        //    (si alguien suelta y el doc lo refleja, muere)
-        const qs = await getDocs(playersCol);
-        const now = Date.now();
-        for(const d of qs.docs){
-          const p = d.data();
-          if(now-(p.lastSeen||0) > LOBBY_TIMEOUT_MS) continue;
-          if(!p.alive) continue;
-
-          // si NO holding → KO
-          // Para ti, usamos estado local holding (más preciso)
-          const isHolding = (p.uid === me?.uid) ? holding : !!p.holding;
-          if(!isHolding){
-            await updateDoc(d.ref, { alive:false, holding:false });
-          }
-        }
-
-        // 3) resolver por tiempo / último vivo
-        await maybeResolveRound();
-
-      } catch {}
-    }, ADMIN_TICK_MS);
+    window.addEventListener("blur", ()=>{
+      holding = false;
+      if(roomState.status === 'playing' && meRef){
+        updateDoc(meRef, { holding:false, holdAt: Date.now(), lastSeen: Date.now() }).catch(()=>{});
+      }
+    });
   }
 
-  function stopAdminTick(){
-    clearInterval(tAdminTick);
-    tAdminTick = null;
+  // ---------------- UI RENDER ----------------
+  function renderRoom(r){
+    stateLine.textContent = r.status || 'waiting';
+    roundLine.textContent = r.round || 0;
+    modeLine.textContent = (r.mode||'normal').toUpperCase();
+
+    const waiting = r.status === 'waiting';
+    lobby.classList.toggle("hidden", !waiting);
+    scoreboard.classList.toggle("hidden", false);
+
+    lamboWrap.classList.toggle("hidden", r.status !== 'playing');
+
+    if(r.status !== 'playing'){
+      stopLoop();
+      countSplash.style.display = "none";
+      holding = false;
+      timeLine.textContent = "0.0s";
+      accelLevel = 0;
+      return;
+    }
+
+    if(r.countdownAt){
+      startCountdown(r.countdownAt);
+    } else {
+      countSplash.style.display = "none";
+    }
+
+    if(r.startedAt){
+      startRoundTick(r.startedAt, r.mode || 'normal');
+      startLoop(r.mode || 'normal');
+    }
   }
 
-  async function maybeResolveRound(){
-    const rs = await getDoc(roomRef);
-    if(!rs.exists()) return;
-    const r = rs.data();
-    if(r.status !== "playing") return;
+  function renderLobby(players){
+    lobbyCount.textContent = String(players.length);
 
-    // ¿tiempo acabado?
-    const timeUp = r.roundEndsAt && Date.now() >= r.roundEndsAt;
+    playersRow.innerHTML = "";
+    const sorted = [...players].sort((a,b)=> (b.points||0)-(a.points||0));
+
+    sorted.forEach(p=>{
+      const alive = (p.alive !== false);
+      const card = document.createElement("div");
+      card.className = "glass rounded-2xl p-3 flex items-center justify-between";
+      card.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-white/10 grid place-items-center font-extrabold">
+            ${(p.name||'?')[0]?.toUpperCase() || '?'}
+          </div>
+          <div>
+            <div class="font-semibold">${escapeHtml(p.name||'Jugador')}</div>
+            <div class="text-xs ${alive?'text-emerald-300/80':'text-rose-300/80'}">
+              ${alive ? (p.holding ? '🖱️ agarrando' : '⚠️ sin agarrar') : '💀 KO'}
+            </div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-xs text-white/60">Puntos</div>
+          <div class="font-extrabold text-lg">${p.points||0}</div>
+        </div>
+      `;
+      playersRow.appendChild(card);
+    });
+
+    if(isAdmin){
+      const ok = players.length >= 2 && (roomState.status === 'waiting' || roomState.status === 'end');
+      btnStart.disabled = !ok;
+      btnStart.classList.toggle("opacity-40", !ok);
+      btnStart.classList.toggle("cursor-not-allowed", !ok);
+    }
+  }
+
+  function renderScore(players){
+    scoreGrid.innerHTML = "";
+    const sorted=[...players].sort((a,b)=> (b.points||0)-(a.points||0));
+    sorted.slice(0,9).forEach((p,i)=>{
+      const box=document.createElement("div");
+      box.className="glass rounded-2xl p-3 flex items-center justify-between";
+      box.innerHTML=`
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-white/10 grid place-items-center font-extrabold">${i+1}</div>
+          <div>
+            <div class="font-semibold">${escapeHtml(p.name||'—')}</div>
+            <div class="text-xs text-white/60">${p.email||''}</div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-xs text-white/60">Pts</div>
+          <div class="font-extrabold text-lg">${p.points||0}</div>
+        </div>
+      `;
+      scoreGrid.appendChild(box);
+    });
+  }
+
+  // ---------------- ADMIN FLOW ----------------
+  async function startRoundAsAdmin(){
+    if(!isAdmin) return;
 
     const qs = await getDocs(playersCol);
     const now = Date.now();
-
-    const aliveOnline = [];
+    const act=[];
     qs.forEach(d=>{
       const p=d.data();
-      if(now-(p.lastSeen||0) > LOBBY_TIMEOUT_MS) return;
-      if(p.alive) aliveOnline.push(p);
+      if(now-(p.lastSeen||0)<=LOBBY_TIMEOUT_MS) act.push(p);
     });
 
-    if(aliveOnline.length <= 1 || timeUp){
-      // winner = único vivo, o si timeUp: preferimos alguien holding (si queda alguno)
-      let winner = aliveOnline[0] || null;
+    if(act.length < 2){
+      toastMsg("Necesitas mínimo 2 jugadores online.");
+      return;
+    }
 
-      if(timeUp && aliveOnline.length > 0){
-        const holders = aliveOnline.filter(p=> !!p.holding);
-        if(holders.length) winner = holders[Math.floor(Math.random()*holders.length)];
-        else winner = aliveOnline[Math.floor(Math.random()*aliveOnline.length)];
-      }
+    const mode = modeSelect.value;
+    const countdownAt = Date.now();
 
-      // Award
-      if(winner){
-        await updateDoc(doc(playersCol, winner.uid), { score: (winner.score||0) + 1 });
-      }
-
-      // ¿alguien llega a meta?
-      const qs2 = await getDocs(playersCol);
-      let champ = null;
-      qs2.forEach(d=>{
-        const p=d.data();
-        if((p.score||0) >= (r.goalPoints||GOAL_POINTS)) champ = p;
+    // reset players alive/holding
+    for(const p of act){
+      await updateDoc(doc(playersCol, p.uid), {
+        alive:true,
+        holding:false,
+        holdAt: Date.now(),
+        lastSeen: Date.now()
       });
+    }
 
-      if(champ){
-        await updateDoc(roomRef, {
-          status:"end",
-          winnerUid: champ.uid,
-          winnerName: champ.name,
-          countdownAt:null,
-          startedAt:null,
-          roundEndsAt:null,
-          updatedAt: serverTimestamp()
-        });
-        stopAdminTick();
-        return;
+    const nextRound = (roomState.round||0) + 1;
+
+    await updateDoc(roomRef, {
+      status: 'playing',
+      mode,
+      round: nextRound,
+      countdownAt,
+      startedAt: null,
+      winnerUid: null,
+      winnerName: null,
+      updatedAt: serverTimestamp()
+    });
+
+    toastMsg(`Ronda ${nextRound} iniciando (${mode.toUpperCase()})…`);
+  }
+
+  async function stopToLobbyAsAdmin(){
+    if(!isAdmin) return;
+    await updateDoc(roomRef, {
+      status:'waiting',
+      countdownAt:null,
+      startedAt:null,
+      winnerUid:null,
+      winnerName:null,
+      updatedAt: serverTimestamp()
+    });
+    toastMsg("Partida detenida. Volvemos al lobby.");
+  }
+
+  // ---------------- COUNTDOWN + ROUND ----------------
+  function startCountdown(countdownAt){
+    countSplash.style.display = "grid";
+    clearInterval(timers.countdown);
+
+    const tick = async ()=>{
+      const t = (Date.now() - countdownAt)/1000;
+      const left = Math.max(0, COUNTDOWN_S - t);
+      const show = Math.ceil(left);
+      countNum.textContent = String(show);
+
+      // cuando termina, admin fija startedAt (una vez) + KO a quien NO esté agarrando
+      if(left <= 0.02){
+        clearInterval(timers.countdown);
+        countSplash.style.display = "none";
+
+        if(isAdmin){
+          const rs = await getDoc(roomRef);
+          if(rs.exists() && !rs.data().startedAt){
+            // FIX: arrancamos partida
+            await updateDoc(roomRef, { startedAt: Date.now(), countdownAt: null, updatedAt: serverTimestamp() });
+
+            // FIX: KO instant para cualquiera que NO esté holding al acabar el countdown
+            await enforceAllHolding(true);
+          }
+        }
+      }
+    };
+
+    tick();
+    timers.countdown = setInterval(tick, 60);
+  }
+
+  function startRoundTick(startedAt, mode){
+    clearInterval(timers.roundTick);
+
+    timers.roundTick = setInterval(async ()=>{
+      const elapsed = (Date.now() - startedAt)/1000;
+      timeLine.textContent = `${elapsed.toFixed(1)}s`;
+
+      if(mode === 'moving'){
+        const level = Math.floor(elapsed / ACCEL_EVERY_S);
+        if(level !== accelLevel){
+          accelLevel = level;
+          toastMsg(`⚡ Speed up x${1+accelLevel}!`);
+        }
       }
 
-      // Si no hay campeón, volvemos a lobby “entre rondas”
-      await updateDoc(roomRef, {
-        status:"lobby",
-        winnerUid: winner?.uid || null,
-        winnerName: winner?.name || null,
-        countdownAt:null,
-        startedAt:null,
-        roundEndsAt:null,
-        updatedAt: serverTimestamp()
-      });
-      stopAdminTick();
+      // Safety: fin por tiempo
+      if(isAdmin && elapsed >= ROUND_SECONDS){
+        await resolveByTime();
+      }
+    }, 140);
+  }
 
-      // Reset alive/holding para siguiente ronda (puntos se quedan)
-      const qs3 = await getDocs(playersCol);
-      for(const d of qs3.docs){
-        await updateDoc(d.ref, { alive:true, holding:false });
+  // ==========================
+  // FIX: “ÁRBITRO” admin
+  // ==========================
+  function startEnforcer(){
+    if(!isAdmin) return;
+    if(timers.enforce) return;
+    timers.enforce = setInterval(async ()=>{
+      try{
+        if(roomState.status !== 'playing' || !roomState.startedAt) return;
+        await enforceAllHolding(false);
+        await resolveIfWinner();
+      }catch{}
+    }, ENFORCE_MS);
+  }
+  function stopEnforcer(){
+    clearInterval(timers.enforce);
+    timers.enforce = null;
+  }
+
+  async function enforceAllHolding(isStartCheck){
+    // Si es startCheck: KO a quien no aguanta justo al empezar
+    // Si no: KO a quien suelta durante la partida
+    const qs = await getDocs(playersCol);
+    const now = Date.now();
+    const act = [];
+    qs.forEach(d=>{
+      const p=d.data();
+      if(now-(p.lastSeen||0)<=LOBBY_TIMEOUT_MS) act.push(p);
+    });
+
+    for(const p of act){
+      if(p.alive === false) continue;
+
+      // Si no está holding -> KO
+      if(!p.holding){
+        await setKO(p.uid);
+        if(isStartCheck){
+          // opcional: no spamear toasts, el KO ya se ve en UI
+        }
       }
     }
+  }
+
+  async function setKO(uid){
+    try{
+      await updateDoc(doc(playersCol, uid), { alive:false, holding:false, holdAt: Date.now(), lastSeen: Date.now() });
+    }catch{}
+  }
+
+  async function resolveIfWinner(){
+    const qs = await getDocs(playersCol);
+    const now = Date.now();
+    const act = [];
+    qs.forEach(d=>{
+      const p=d.data();
+      if(now-(p.lastSeen||0)<=LOBBY_TIMEOUT_MS) act.push(p);
+    });
+
+    const alive = act.filter(p=>p.alive !== false);
+    if(alive.length === 1){
+      await awardWinner(alive[0]);
+    }
+    if(alive.length === 0){
+      await updateDoc(roomRef,{ status:'end', updatedAt: serverTimestamp() });
+    }
+  }
+
+  async function resolveByTime(){
+    const qs = await getDocs(playersCol);
+    const now = Date.now();
+    const act = [];
+    qs.forEach(d=>{
+      const p=d.data();
+      if(now-(p.lastSeen||0)<=LOBBY_TIMEOUT_MS) act.push(p);
+    });
+
+    const alive = act.filter(p=>p.alive !== false);
+    if(alive.length === 1) return awardWinner(alive[0]);
+
+    if(alive.length > 1){
+      const holders = alive.filter(p=>p.holding);
+      const pool = holders.length ? holders : alive;
+      const win = pool[Math.floor(Math.random()*pool.length)];
+      await awardWinner(win);
+    } else {
+      await updateDoc(roomRef,{ status:'end', updatedAt: serverTimestamp() });
+    }
+  }
+
+  async function awardWinner(p){
+    const pref = doc(playersCol, p.uid);
+    const snap = await getDoc(pref);
+    const cur = snap.exists() ? snap.data() : {};
+    const np = (cur.points||0)+1;
+
+    await updateDoc(pref, { points: np, lastSeen: Date.now() });
+    await updateDoc(roomRef, {
+      status:'end',
+      winnerUid: p.uid,
+      winnerName: p.name,
+      updatedAt: serverTimestamp()
+    });
+
+    showResult(p.name, np);
+  }
+
+  function showResult(name, points){
+    stopLoop();
+    result.classList.remove("hidden");
+    winnerTitle.textContent = `🏁 Gana ${name}`;
+    winnerSub.textContent = `+1 punto. Total: ${points}.`;
+  }
+
+  // ---------------- MOVEMENT LOOP ----------------
+  function startLoop(mode){
+    stopLoop();
+
+    lamboPos.x = 50; lamboPos.y = 54;
+    vel = { x: 0.18, y: 0.12 };
+    accelLevel = 0;
+
+    placeLambo(lamboPos.x, lamboPos.y);
+
+    if(mode !== 'moving'){
+      let t0 = performance.now();
+      const loop = (t)=>{
+        const float = Math.sin(t/900)*0.25;
+        lambo.style.transform = `translate(-50%, -50%) rotate(${(-2 + float)}deg)`;
+        timers.frame = requestAnimationFrame(loop);
+      };
+      timers.frame = requestAnimationFrame(loop);
+      return;
+    }
+
+    let lastT = performance.now();
+    const loop = (t)=>{
+      const dt = Math.min(0.033, (t-lastT)/1000);
+      lastT = t;
+
+      const base = 1 + accelLevel * 0.55;
+      const spx = vel.x * base;
+      const spy = vel.y * base;
+
+      lamboPos.x += spx * (dt*60);
+      lamboPos.y += spy * (dt*60);
+
+      const marginX = 8;
+      const marginY = 14;
+
+      if(lamboPos.x < marginX){ lamboPos.x = marginX; vel.x *= -1; }
+      if(lamboPos.x > 100-marginX){ lamboPos.x = 100-marginX; vel.x *= -1; }
+      if(lamboPos.y < marginY){ lamboPos.y = marginY; vel.y *= -1; }
+      if(lamboPos.y > 100-marginY){ lamboPos.y = 100-marginY; vel.y *= -1; }
+
+      const rot = Math.max(-10, Math.min(10, vel.x*22));
+      lambo.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`;
+
+      placeLambo(lamboPos.x, lamboPos.y);
+
+      timers.frame = requestAnimationFrame(loop);
+    };
+    timers.frame = requestAnimationFrame(loop);
+  }
+
+  function stopLoop(){
+    if(timers.frame) cancelAnimationFrame(timers.frame);
+    timers.frame = null;
+    clearInterval(timers.roundTick);
+    timers.roundTick = null;
+  }
+
+  function placeLambo(px, py){
+    lambo.style.left = px + "vw";
+    lambo.style.top  = py + "vh";
+  }
+
+  // ---------------- END SCREEN HANDLING ----------------
+  function renderEndIfNeeded(){
+    if(roomState.status !== 'end') return;
+    const name = roomState.winnerName;
+    if(name){
+      const p = cachedPlayers[roomState.winnerUid];
+      showResult(name, p?.points || 0);
+    } else {
+      stopLoop();
+      result.classList.remove("hidden");
+      winnerTitle.textContent = `😵 Nadie gana`;
+      winnerSub.textContent = `Todos KO.`;
+    }
+  }
+
+  onSnapshot(roomRef, (snap)=>{
+    if(!snap.exists()) return;
+    roomState = snap.data();
+    renderRoom(roomState);
+    if(roomState.status === 'end') renderEndIfNeeded();
+  });
+
+  // ---------------- Utils ----------------
+  function toastMsg(text){
+    toastText.textContent = text;
+    toast.style.display = "block";
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=> toast.style.display="none", 1700);
+  }
+  function escapeHtml(s){
+    return (s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
   }
 </script>
 </body>
