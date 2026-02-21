@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Lambo Hold — Verd@Net</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{ color-scheme:dark }
+  body{ font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; }
+
+  /* Background cinematic */
+  .bg {
+    position: fixed; inset: 0; z-index: -3;
+    background: url('assets/lambo/lambo_bg.jpg') center/cover no-repeat;
+    filter: saturate(1.1) contrast(1.05) brightness(.75);
+  }
+  .bg::after{
+    content:""; position:absolute; inset:0;
+    background:
+      radial-gradient(circle at 30% 20%, rgba(124,58,237,.18), transparent 45%),
+      radial-gradient(circle at 70% 70%, rgba(236,72,153,.16), transparent 55%),
+      linear-gradient(to bottom, rgba(0,0,0,.35), rgba(0,0,0,.75));
+  }
+
+  /* subtle moving noise */
+  .noise{
+    position: fixed; inset:-40px; z-index:-2; pointer-events:none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/></filter><rect width="220" height="220" filter="url(%23n)" opacity=".18"/></svg>');
+    opacity:.35; mix-blend-mode: overlay;
+    animation: drift 16s linear infinite;
+  }
+  @keyframes drift { from{ transform:translate3d(0,0,0)} to{ transform:translate3d(60px,35px,0)} }
+
+  /* glass */
+  .glass{
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.10);
+    backdrop-filter: blur(10px);
+  }
+
+  /* Lambo sprite */
+  #lamboWrap{
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  #lambo {
+    position: absolute;
+    width: min(36vw, 520px);
+    max-width: 520px;
+    min-width: 260px;
+    user-select: none;
+    -webkit-user-drag: none;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) rotate(-2deg);
+    filter:
+      drop-shadow(0 28px 50px rgba(0,0,0,.55))
+      drop-shadow(0 0 26px rgba(124,58,237,.35))
+      drop-shadow(0 0 18px rgba(236,72,153,.22));
+    transition: filter .18s ease, transform .12s ease;
+  }
+  #lambo:active{
+    transform: translate(-50%, -50%) rotate(1deg) scale(1.01);
+    filter:
+      drop-shadow(0 34px 64px rgba(0,0,0,.62))
+      drop-shadow(0 0 34px rgba(34,211,238,.35))
+      drop-shadow(0 0 22px rgba(167,139,250,.28));
+  }
+
+  /* HUD neon line */
+  .hudLine{
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+  }
+
+  /* countdown splash */
+  #countSplash{
+    position: fixed; inset: 0; display:none; place-items:center;
+    z-index: 50;
+    background: rgba(255,255,255,.02);
+    backdrop-filter: blur(6px);
+  }
+  .bigNum{
+    font-size: clamp(56px, 9vw, 120px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    text-shadow: 0 20px 60px rgba(0,0,0,.6);
+  }
+  .pulseRing{
+    width: clamp(220px, 34vw, 520px);
+    aspect-ratio: 1/1;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.16);
+    box-shadow: 0 0 0 1px rgba(124,58,237,.25), 0 0 50px rgba(124,58,237,.22);
+    animation: ring 1s ease-in-out infinite;
+  }
+  @keyframes ring { 0%{ transform:scale(.98); opacity:.8 } 50%{ transform:scale(1.02); opacity:1 } 100%{ transform:scale(.98); opacity:.8 } }
+
+  /* status pill */
+  .pill{
+    display:inline-flex; align-items:center; gap:.5rem;
+    padding:.35rem .7rem; border-radius: 999px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.10);
+  }
+
+  /* small “spark” dots */
+  .sparks{
+    position: fixed; inset:0; z-index:-1; pointer-events:none;
+    background:
+      radial-gradient(circle at 18% 20%, rgba(255,255,255,.10), transparent 22%),
+      radial-gradient(circle at 66% 26%, rgba(255,255,255,.08), transparent 20%),
+      radial-gradient(circle at 74% 78%, rgba(255,255,255,.08), transparent 24%),
+      radial-gradient(circle at 28% 72%, rgba(255,255,255,.07), transparent 22%);
+    filter: blur(0px);
+    opacity: .7;
+  }
+
+  /* toast */
+  #toast{
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    z-index: 60; display:none;
+  }
+
+</style>
+</head>
+
+<body class="min-h-screen text-white">
+<div class="bg"></div>
+<div class="noise"></div>
+<div class="sparks"></div>
+
+<div class="max-w-6xl mx-auto p-4 md:p-8 space-y-4 relative z-10">
+
+  <!-- Header -->
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+    <div>
+      <div class="text-xs text-white/60 tracking-widest">VERD@NET · GAME MODE</div>
+      <h1 class="text-2xl md:text-3xl font-extrabold">Lambo Hold</h1>
+      <div class="text-sm text-white/65 mt-1" id="meLine">Sin sesión</div>
+    </div>
+
+    <div class="glass rounded-2xl p-3 flex flex-wrap items-center gap-2">
+      <span class="pill text-xs"><span class="opacity-70">Sala</span> <b id="roomLine">—</b></span>
+      <span class="pill text-xs"><span class="opacity-70">Ronda</span> <b id="roundLine">0</b></span>
+      <span class="pill text-xs"><span class="opacity-70">Tiempo</span> <b id="timeLine">0.0s</b></span>
+      <span class="pill text-xs"><span class="opacity-70">Modo</span> <b id="modeLine">NORMAL</b></span>
+      <span class="pill text-xs"><span class="opacity-70">Estado</span> <b id="stateLine">waiting</b></span>
+    </div>
+  </header>
+
+  <!-- Auth panel -->
+  <section id="authPanel" class="glass rounded-2xl p-4 hidden">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <div class="font-semibold">No has iniciado sesión</div>
+        <div class="text-sm text-white/70">Entra con Google para jugar</div>
+      </div>
+      <button id="btnLogin" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20">Iniciar sesión</button>
+    </div>
+  </section>
+
+  <!-- Admin Bar -->
+  <section id="adminBar" class="glass rounded-2xl p-3 hidden">
+    <div class="flex flex-col md:flex-row gap-2 md:items-center">
+      <div class="flex items-center gap-2">
+        <span class="text-xs px-2 py-1 rounded bg-emerald-500/20 border border-emerald-400/30">Admin</span>
+
+        <select id="modeSelect" class="px-3 py-2 rounded-xl bg-white/10 border border-white/10 text-sm">
+          <option value="normal">Modo NORMAL (quieto)</option>
+          <option value="moving">Modo MOVING (se mueve + acelera)</option>
+        </select>
+
+        <button id="btnStart" class="px-4 py-2 rounded-xl bg-indigo-600/90 hover:bg-indigo-600 text-sm font-semibold">
+          Empezar ronda
+        </button>
+        <button id="btnStop" class="px-4 py-2 rounded-xl bg-rose-600/85 hover:bg-rose-600 text-sm font-semibold">
+          Detener → Lobby
+        </button>
+      </div>
+
+      <div class="md:ml-auto flex items-center gap-2 text-xs text-white/70">
+        <span class="pill">Mínimo: <b>2 jugadores</b></span>
+        <span class="pill">Mantén pulsado el lambo o pierdes</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lobby -->
+  <section id="lobby" class="glass rounded-2xl p-4">
+    <div class="flex items-center justify-between">
+      <h2 class="font-semibold text-lg">Sala de espera</h2>
+      <div class="text-sm text-white/70"><span id="lobbyCount">0</span> jugadores</div>
+    </div>
+
+    <div class="hudLine my-3"></div>
+
+    <div id="playersRow" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+
+    <p class="mt-3 text-xs text-white/60">
+      Entra mínimo <b>2</b>. Cuando empiece, saldrá <b>3…2…1</b> y el lambo aparecerá.  
+      Si sueltas → KO. Si pasa la cuenta atrás y no estás pulsando → KO. Último en pie gana la ronda.
+    </p>
+  </section>
+
+  <!-- Scoreboard -->
+  <section id="scoreboard" class="glass rounded-2xl p-4 hidden">
+    <div class="flex items-center justify-between">
+      <h2 class="font-semibold text-lg">Top (Puntos)</h2>
+      <div class="text-sm text-white/70">Puntos por ganar rondas</div>
+    </div>
+    <div class="hudLine my-3"></div>
+    <div id="scoreGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+  </section>
+
+  <!-- Round result -->
+  <section id="result" class="glass rounded-2xl p-4 hidden text-center">
+    <h2 class="text-xl font-extrabold" id="winnerTitle">—</h2>
+    <p class="text-white/70 mt-1" id="winnerSub">—</p>
+    <div class="mt-4 flex justify-center gap-2">
+      <button id="btnReady" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20">Volver al lobby</button>
+    </div>
+  </section>
+</div>
+
+<!-- Floating lambo -->
+<div id="lamboWrap" class="hidden">
+  <img id="lambo" src="assets/lambo/lambo.png" alt="Lamborghini" />
+</div>
+
+<!-- Countdown overlay -->
+<div id="countSplash">
+  <div class="relative grid place-items-center">
+    <div class="pulseRing absolute"></div>
+    <div class="text-center relative">
+      <div class="text-xs tracking-widest text-white/70 mb-2">PREPÁRATE</div>
+      <div id="countNum" class="bigNum">3</div>
+      <div class="text-sm text-white/70 mt-2">Pon el ratón encima y <b>mantén pulsado</b>.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="glass rounded-2xl px-4 py-3 text-sm">
+  <span id="toastText">—</span>
+</div>
+
+<script type="module">
+  // Firebase SDKs
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+  import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
+    collection, getDocs, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+  // ---- CONFIG (tu proyecto) ----
+  const firebaseConfig = {
+    apiKey: "AIzaSyCkNI9EEw_4Rf8f4IqygydRTbHSHBAYnKs",
+    authDomain: "klex-28ea5.firebaseapp.com",
+    databaseURL: "https://klex-28ea5-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "klex-28ea5",
+    storageBucket: "klex-28ea5.appspot.com",
+    messagingSenderId: "794750673743",
+    appId: "1:794750673743:web:8b38291a417089e643db3a",
+    measurementId: "G-DQ6E8NBVGR"
+  };
+
+  const ROOM_ID = "sala-unica";
+  const ADMIN_EMAIL = "hodelyproductions@gmail.com";
+
+  // timings
+  const COUNTDOWN_S = 3;
+  const ROUND_SECONDS = 45;        // duración máxima (si quieres). Ganador antes si todos KO excepto 1
+  const ACCEL_EVERY_S = 15;        // cada 15s acelera (moving)
+  const HEARTBEAT_MS = 4000;
+  const LOBBY_TIMEOUT_MS = 20000;
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+
+  const roomRef = doc(db, "games", "lambo", "rooms", ROOM_ID);
+  const playersCol = collection(roomRef, "players");
+
+  // ---- UI ----
+  const $ = (s)=>document.querySelector(s);
+  const meLine=$("#meLine"), roomLine=$("#roomLine"), roundLine=$("#roundLine"),
+        timeLine=$("#timeLine"), modeLine=$("#modeLine"), stateLine=$("#stateLine");
+  const authPanel=$("#authPanel"), btnLogin=$("#btnLogin");
+  const adminBar=$("#adminBar"), btnStart=$("#btnStart"), btnStop=$("#btnStop"), modeSelect=$("#modeSelect");
+  const lobby=$("#lobby"), lobbyCount=$("#lobbyCount"), playersRow=$("#playersRow");
+  const scoreboard=$("#scoreboard"), scoreGrid=$("#scoreGrid");
+  const result=$("#result"), winnerTitle=$("#winnerTitle"), winnerSub=$("#winnerSub"), btnReady=$("#btnReady");
+  const lamboWrap=$("#lamboWrap"), lambo=$("#lambo");
+  const countSplash=$("#countSplash"), countNum=$("#countNum");
+  const toast=$("#toast"), toastText=$("#toastText");
+
+  const provider = new GoogleAuthProvider();
+
+  // ---- State ----
+  let me=null, isAdmin=false;
+  let cachedPlayers = {};
+  let roomState = { status:'waiting', round:0, mode:'normal', startedAt:null, countdownAt:null };
+  let timers = { heartbeat:null, frame:null, roundTick:null, countdown:null };
+  let holding = false;
+  let lastPointerUpAt = 0;
+
+  // lambo movement
+  let lamboPos = { x: 50, y: 52 };
+  let vel = { x: 0.18, y: 0.12 }; // base speed (moving)
+  let accelLevel = 0;
+
+  btnLogin?.addEventListener("click", ()=>signInWithPopup(auth, provider));
+
+  onAuthStateChanged(auth, async (user)=>{
+    if(!user){
+      authPanel.classList.remove("hidden");
+      meLine.textContent = "Sin sesión";
+      return;
+    }
+    authPanel.classList.add("hidden");
+    me = { uid:user.uid, email:user.email||"", name:user.displayName || (user.email?.split("@")[0]) || "Jugador" };
+    isAdmin = (me.email === ADMIN_EMAIL);
+
+    meLine.textContent = `Tú: ${me.name}${isAdmin ? " (admin)" : ""}`;
+    roomLine.textContent = ROOM_ID;
+    if(isAdmin) adminBar.classList.remove("hidden");
+
+    await ensureRoom();
+    await joinPresence();
+    attachListeners();
+    wireControls();
+  });
+
+  async function ensureRoom(){
+    const snap = await getDoc(roomRef);
+    if(!snap.exists()){
+      if(!isAdmin) return;
+      await setDoc(roomRef, {
+        status:'waiting', round:0, mode:'normal',
+        countdownAt:null, startedAt:null,
+        winnerUid:null, winnerName:null,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+      });
+    }
+  }
+
+  async function joinPresence(){
+    const meRef = doc(playersCol, me.uid);
+    await setDoc(meRef, {
+      uid: me.uid,
+      name: me.name,
+      email: me.email,
+      alive: true,
+      holding: false,
+      points: 0,
+      lastSeen: Date.now()
+    }, { merge:true });
+
+    clearInterval(timers.heartbeat);
+    timers.heartbeat = setInterval(async ()=>{
+      try{
+        await updateDoc(meRef, { lastSeen: Date.now(), holding: holding });
+      }catch{}
+    }, HEARTBEAT_MS);
+  }
+
+  function attachListeners(){
+    onSnapshot(roomRef, (snap)=>{
+      if(!snap.exists()) return;
+      roomState = snap.data();
+      renderRoom(roomState);
+    });
+
+    onSnapshot(playersCol, (qs)=>{
+      const now = Date.now();
+      cachedPlayers = {};
+      const act = [];
+      qs.forEach(d=>{
+        const p = d.data();
+        // “online” real: si han hecho heartbeat reciente
+        if(now - (p.lastSeen||0) <= LOBBY_TIMEOUT_MS){
+          cachedPlayers[p.uid]=p;
+          act.push(p);
+        }
+      });
+      renderLobby(act);
+      renderScore(act);
+    });
+  }
+
+  function wireControls(){
+    btnStart?.addEventListener("click", startRoundAsAdmin);
+    btnStop?.addEventListener("click", stopToLobbyAsAdmin);
+    btnReady?.addEventListener("click", ()=> {
+      result.classList.add("hidden");
+      lobby.classList.remove("hidden");
+      scoreboard.classList.remove("hidden");
+    });
+
+    // Holding logic (mouse/touch)
+    const down = (e)=>{
+      if(roomState.status !== 'playing') return;
+      if(roomState.countdownAt) return; // durante cuenta atrás no cuenta como holding real
+      holding = true;
+      lastPointerUpAt = 0;
+      e.preventDefault?.();
+    };
+    const up = ()=>{
+      if(roomState.status !== 'playing') return;
+      holding = false;
+      lastPointerUpAt = Date.now();
+    };
+
+    lambo.addEventListener("pointerdown", down);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("blur", ()=>{ holding=false; });
+    window.addEventListener("pointercancel", ()=>{ holding=false; });
+  }
+
+  // ---------------- UI RENDER ----------------
+  function renderRoom(r){
+    stateLine.textContent = r.status || 'waiting';
+    roundLine.textContent = r.round || 0;
+    modeLine.textContent = (r.mode||'normal').toUpperCase();
+
+    // show sections
+    const waiting = r.status === 'waiting';
+    lobby.classList.toggle("hidden", !waiting);
+    scoreboard.classList.toggle("hidden", false);
+
+    // show lambo only in playing
+    lamboWrap.classList.toggle("hidden", r.status !== 'playing');
+    if(r.status !== 'playing'){
+      stopLoop();
+      countSplash.style.display = "none";
+      holding = false;
+      timeLine.textContent = "0.0s";
+      accelLevel = 0;
+      return;
+    }
+
+    // countdown start
+    if(r.countdownAt){
+      startCountdown(r.countdownAt);
+    } else {
+      countSplash.style.display = "none";
+    }
+
+    // startedAt tick
+    if(r.startedAt){
+      startRoundTick(r.startedAt, r.mode || 'normal');
+      startLoop(r.mode || 'normal');
+    }
+  }
+
+  function renderLobby(players){
+    lobbyCount.textContent = String(players.length);
+
+    playersRow.innerHTML = "";
+    const sorted = [...players].sort((a,b)=> (b.points||0)-(a.points||0));
+
+    sorted.forEach(p=>{
+      const alive = (p.alive !== false);
+      const card = document.createElement("div");
+      card.className = "glass rounded-2xl p-3 flex items-center justify-between";
+      card.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-white/10 grid place-items-center font-extrabold">
+            ${(p.name||'?')[0]?.toUpperCase() || '?'}
+          </div>
+          <div>
+            <div class="font-semibold">${escapeHtml(p.name||'Jugador')}</div>
+            <div class="text-xs ${alive?'text-emerald-300/80':'text-rose-300/80'}">
+              ${alive ? (p.holding ? '🖱️ agarrando' : '⚠️ sin agarrar') : '💀 KO'}
+            </div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-xs text-white/60">Puntos</div>
+          <div class="font-extrabold text-lg">${p.points||0}</div>
+        </div>
+      `;
+      playersRow.appendChild(card);
+    });
+
+    // Admin: bloquear start si <2 online
+    if(isAdmin){
+      const ok = players.length >= 2 && (roomState.status === 'waiting' || roomState.status === 'end');
+      btnStart.disabled = !ok;
+      btnStart.classList.toggle("opacity-40", !ok);
+      btnStart.classList.toggle("cursor-not-allowed", !ok);
+    }
+  }
+
+  function renderScore(players){
+    scoreGrid.innerHTML = "";
+    const sorted=[...players].sort((a,b)=> (b.points||0)-(a.points||0));
+    sorted.slice(0,9).forEach((p,i)=>{
+      const box=document.createElement("div");
+      box.className="glass rounded-2xl p-3 flex items-center justify-between";
+      box.innerHTML=`
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-white/10 grid place-items-center font-extrabold">${i+1}</div>
+          <div>
+            <div class="font-semibold">${escapeHtml(p.name||'—')}</div>
+            <div class="text-xs text-white/60">${p.email||''}</div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-xs text-white/60">Pts</div>
+          <div class="font-extrabold text-lg">${p.points||0}</div>
+        </div>
+      `;
+      scoreGrid.appendChild(box);
+    });
+  }
+
+  // ---------------- ADMIN FLOW ----------------
+  async function startRoundAsAdmin(){
+    if(!isAdmin) return;
+
+    const qs = await getDocs(playersCol);
+    const now = Date.now();
+    const act=[];
+    qs.forEach(d=>{
+      const p=d.data();
+      if(now-(p.lastSeen||0)<=LOBBY_TIMEOUT_MS) act.push(p);
+    });
+
+    if(act.length < 2){
+      toastMsg("Necesitas mínimo 2 jugadores online.");
+      return;
+    }
+
+    const mode = modeSelect.value; // 'normal' | 'moving'
+    const countdownAt = Date.now();
+
+    // reset players alive/holding
+    for(const p of act){
+      await updateDoc(doc(playersCol, p.uid), { alive:true, holding:false, lastSeen: Date.now() });
+    }
+
+    // bump round
+    const nextRound = (roomState.round||0) + 1;
+
+    await updateDoc(roomRef, {
+      status: 'playing',
+      mode,
+      round: nextRound,
+      countdownAt,
+      startedAt: null,
+      winnerUid: null,
+      winnerName: null,
+      updatedAt: serverTimestamp()
+    });
+
+    toastMsg(`Ronda ${nextRound} iniciando (${mode.toUpperCase()})…`);
+  }
+
+  async function stopToLobbyAsAdmin(){
+    if(!isAdmin) return;
+    await updateDoc(roomRef, {
+      status:'waiting',
+      countdownAt:null,
+      startedAt:null,
+      winnerUid:null,
+      winnerName:null,
+      updatedAt: serverTimestamp()
+    });
+    toastMsg("Partida detenida. Volvemos al lobby.");
+  }
+
+  // ---------------- COUNTDOWN + ROUND ----------------
+  function startCountdown(countdownAt){
+    countSplash.style.display = "grid";
+    clearInterval(timers.countdown);
+
+    const tick = async ()=>{
+      const t = (Date.now() - countdownAt)/1000;
+      const left = Math.max(0, COUNTDOWN_S - t);
+      const show = Math.ceil(left);
+      countNum.textContent = String(show);
+
+      // cuando termina, admin fija startedAt (una vez)
+      if(left <= 0.02){
+        clearInterval(timers.countdown);
+        countSplash.style.display = "none";
+        if(isAdmin){
+          // si ya lo puso alguien, no lo pisa
+          const rs = await getDoc(roomRef);
+          if(rs.exists() && !rs.data().startedAt){
+            await updateDoc(roomRef, { startedAt: Date.now(), countdownAt: null, updatedAt: serverTimestamp() });
+          }
+        }
+      }
+    };
+
+    tick();
+    timers.countdown = setInterval(tick, 60);
+  }
+
+  function startRoundTick(startedAt, mode){
+    clearInterval(timers.roundTick);
+
+    timers.roundTick = setInterval(async ()=>{
+      const elapsed = (Date.now() - startedAt)/1000;
+      timeLine.textContent = `${elapsed.toFixed(1)}s`;
+
+      // aceleración cada 15s en moving
+      if(mode === 'moving'){
+        const level = Math.floor(elapsed / ACCEL_EVERY_S);
+        if(level !== accelLevel){
+          accelLevel = level;
+          toastMsg(`⚡ Speed up x${1+accelLevel}!`);
+        }
+      }
+
+      // KO detection:
+      // si no está holding -> KO (pero evitamos “micro suelto” con 120ms margen)
+      const my = cachedPlayers[me?.uid];
+      if(my?.alive && roomState.status === 'playing'){
+        const grace = 120;
+        if(!holding && (!lastPointerUpAt || Date.now()-lastPointerUpAt > grace)){
+          await setKO(me.uid);
+          toastMsg("Has soltado el Lambo. KO.");
+        }
+      }
+
+      // resolver ganador (admin)
+      if(isAdmin){
+        await resolveIfWinner();
+        // safety: fin por tiempo
+        if(elapsed >= ROUND_SECONDS){
+          await resolveByTime();
+        }
+      }
+    }, 140);
+  }
+
+  async function setKO(uid){
+    try{
+      await updateDoc(doc(playersCol, uid), { alive:false, holding:false, lastSeen: Date.now() });
+    }catch{}
+  }
+
+  async function resolveIfWinner(){
+    const qs = await getDocs(playersCol);
+    const now = Date.now();
+    const act = [];
+    qs.forEach(d=>{
+      const p=d.data();
+      if(now-(p.lastSeen||0)<=LOBBY_TIMEOUT_MS) act.push(p);
+    });
+
+    const alive = act.filter(p=>p.alive !== false);
+    if(alive.length === 1){
+      await awardWinner(alive[0]);
+    }
+    if(alive.length === 0){
+      // todos KO -> nadie gana
+      await updateDoc(roomRef,{ status:'end', updatedAt: serverTimestamp() });
+    }
+  }
+
+  async function resolveByTime(){
+    const qs = await getDocs(playersCol);
+    const now = Date.now();
+    const act = [];
+    qs.forEach(d=>{
+      const p=d.data();
+      if(now-(p.lastSeen||0)<=LOBBY_TIMEOUT_MS) act.push(p);
+    });
+    const alive = act.filter(p=>p.alive !== false);
+    if(alive.length === 1) return awardWinner(alive[0]);
+    if(alive.length > 1){
+      // si hay varios vivos al tiempo: gana quien esté holding (si varios holding -> random)
+      const holders = alive.filter(p=>p.holding);
+      const pool = holders.length ? holders : alive;
+      const win = pool[Math.floor(Math.random()*pool.length)];
+      await awardWinner(win);
+    }else{
+      await updateDoc(roomRef,{ status:'end', updatedAt: serverTimestamp() });
+    }
+  }
+
+  async function awardWinner(p){
+    // +1 punto
+    const pref = doc(playersCol, p.uid);
+    const snap = await getDoc(pref);
+    const cur = snap.exists() ? snap.data() : {};
+    const np = (cur.points||0)+1;
+
+    await updateDoc(pref, { points: np, lastSeen: Date.now() });
+    await updateDoc(roomRef, {
+      status:'end',
+      winnerUid: p.uid,
+      winnerName: p.name,
+      updatedAt: serverTimestamp()
+    });
+
+    showResult(p.name, np);
+  }
+
+  function showResult(name, points){
+    stopLoop();
+    result.classList.remove("hidden");
+    winnerTitle.textContent = `🏁 Gana ${name}`;
+    winnerSub.textContent = `+1 punto. Total: ${points}.`;
+  }
+
+  // ---------------- MOVEMENT LOOP ----------------
+  function startLoop(mode){
+    stopLoop();
+
+    // initial position random-ish center
+    lamboPos.x = 50; lamboPos.y = 54;
+    vel = { x: 0.18, y: 0.12 };
+    accelLevel = 0;
+
+    // apply first placement
+    placeLambo(lamboPos.x, lamboPos.y);
+
+    if(mode !== 'moving'){
+      // normal mode: keep it breathing (tiny float)
+      let t0 = performance.now();
+      const loop = (t)=>{
+        const dt = (t - t0)/1000; t0 = t;
+        const float = Math.sin(t/900)*0.25;
+        lambo.style.transform = `translate(-50%, -50%) rotate(${(-2 + float)}deg)`;
+        timers.frame = requestAnimationFrame(loop);
+      };
+      timers.frame = requestAnimationFrame(loop);
+      return;
+    }
+
+    // moving: bounce around edges and accelerate each 15s
+    let lastT = performance.now();
+    const loop = (t)=>{
+      const dt = Math.min(0.033, (t-lastT)/1000);
+      lastT = t;
+
+      const base = 1 + accelLevel * 0.55; // speed multiplier step
+      const spx = vel.x * base;
+      const spy = vel.y * base;
+
+      lamboPos.x += spx * (dt*60);
+      lamboPos.y += spy * (dt*60);
+
+      // bounce
+      const marginX = 8;
+      const marginY = 14;
+
+      if(lamboPos.x < marginX){ lamboPos.x = marginX; vel.x *= -1; }
+      if(lamboPos.x > 100-marginX){ lamboPos.x = 100-marginX; vel.x *= -1; }
+      if(lamboPos.y < marginY){ lamboPos.y = marginY; vel.y *= -1; }
+      if(lamboPos.y > 100-marginY){ lamboPos.y = 100-marginY; vel.y *= -1; }
+
+      // rotate based on velocity
+      const rot = Math.max(-10, Math.min(10, vel.x*22));
+      lambo.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`;
+
+      placeLambo(lamboPos.x, lamboPos.y);
+
+      timers.frame = requestAnimationFrame(loop);
+    };
+    timers.frame = requestAnimationFrame(loop);
+  }
+
+  function stopLoop(){
+    if(timers.frame) cancelAnimationFrame(timers.frame);
+    timers.frame = null;
+    clearInterval(timers.roundTick);
+    timers.roundTick = null;
+  }
+
+  function placeLambo(px, py){
+    lambo.style.left = px + "vw";
+    lambo.style.top  = py + "vh";
+  }
+
+  // ---------------- END SCREEN HANDLING ----------------
+  // show result when room.status=end
+  function renderEndIfNeeded(){
+    if(roomState.status !== 'end') return;
+    const name = roomState.winnerName;
+    if(name){
+      const p = cachedPlayers[roomState.winnerUid];
+      showResult(name, p?.points || 0);
+    } else {
+      stopLoop();
+      result.classList.remove("hidden");
+      winnerTitle.textContent = `😵 Nadie gana`;
+      winnerSub.textContent = `Todos KO.`;
+    }
+  }
+
+  // observe end state changes from room snapshot
+  onSnapshot(roomRef, (snap)=>{
+    if(!snap.exists()) return;
+    roomState = snap.data();
+    renderRoom(roomState);
+    if(roomState.status === 'end') renderEndIfNeeded();
+  });
+
+  // ---------------- Utils ----------------
+  function toastMsg(text){
+    toastText.textContent = text;
+    toast.style.display = "block";
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=> toast.style.display="none", 1700);
+  }
+  function escapeHtml(s){
+    return (s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+  }
+</script>
+</body>
+</html>

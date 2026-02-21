@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mafia 3 — Verd@Net</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+<style>
+  :root{ color-scheme:dark }
+  body{ font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif }
+  .glass{ background:rgba(255,255,255,.06); backdrop-filter: blur(10px); border:1px solid rgba(255,255,255,.12) }
+  .bar{ height:6px; border-radius:999px; background:rgba(255,255,255,.15); overflow:hidden }
+  .bar>i{ display:block; height:100%; width:0%; background:linear-gradient(90deg,#a78bfa,#22d3ee) }
+
+  .bg { position:fixed; inset:0; z-index:-2; background-size:cover; background-position:center; transition:opacity .45s ease }
+  #bg2 { opacity:0 }
+  #bgPeeps img{ filter: drop-shadow(0 6px 10px rgba(0,0,0,.6)) }
+
+  /* --- Online indicator --- */
+  .dot{ width:9px; height:9px; border-radius:999px; display:inline-block }
+  .dot.on{ background:#34d399; box-shadow:0 0 0 3px rgba(52,211,153,.15) }
+  .dot.off{ background:#64748b; box-shadow:0 0 0 3px rgba(100,116,139,.12) }
+
+  /* ===== EPIC REVEAL OVERLAY (FIX MIRROR + WHITE STUCK) ===== */
+  #revealOverlay{
+    position:fixed; inset:0;
+    z-index:9999;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    background:#fff;
+    opacity:0;
+    transition: opacity .35s ease;
+  }
+  #revealOverlay.show{ display:flex; }
+  #revealOverlay.on{ opacity:1; }
+
+  .revealStage{
+    width:min(720px, 92vw);
+    text-align:center;
+    color:#111;
+  }
+  .revealTop{
+    font-weight:900;
+    letter-spacing:.35em;
+    font-size:12px;
+    opacity:.65;
+    margin-bottom:12px;
+  }
+  .flipWrap{ perspective: 1200px; }
+  .flipCard{
+    width:min(680px, 92vw);
+    height:min(380px, 56vh);
+    margin:0 auto;
+    border-radius:24px;
+    position:relative;
+    transform-style:preserve-3d;
+    transition: transform 900ms cubic-bezier(.2,.8,.2,1);
+    box-shadow: 0 34px 90px rgba(0,0,0,.25);
+  }
+  .flipCard.flip{ transform: rotateY(180deg); }
+  .face{
+    position:absolute; inset:0;
+    border-radius:24px;
+    backface-visibility:hidden;
+    -webkit-backface-visibility:hidden;
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:26px;
+  }
+  .face.back{
+    background: radial-gradient(circle at 30% 20%, rgba(0,0,0,.10), rgba(0,0,0,.28));
+    border:1px solid rgba(0,0,0,.12);
+  }
+  .back .stamp{
+    font-size:14px;
+    letter-spacing:.35em;
+    font-weight:900;
+    opacity:.88;
+  }
+  .face.front{
+    transform: rotateY(180deg);
+    color:white;
+    border:1px solid rgba(255,255,255,.18);
+  }
+  .front.mafia{
+    background: radial-gradient(circle at 30% 30%, rgba(255,55,55,.55), rgba(0,0,0,.78));
+  }
+  .front.civil{
+    background: radial-gradient(circle at 30% 30%, rgba(80,200,255,.55), rgba(0,0,0,.78));
+  }
+  .roleTitle{
+    font-size:38px;
+    font-weight:950;
+    line-height:1.05;
+    text-shadow: 0 14px 34px rgba(0,0,0,.45);
+  }
+  .roleSub{ margin-top:10px; font-size:14px; opacity:.9; }
+  .revealHint{ margin-top:12px; font-size:12px; opacity:.55; }
+
+  /* --- Results panels --- */
+  .panelTitle{
+    font-weight:900;
+    letter-spacing:.03em;
+  }
+</style>
+</head>
+
+<body class="min-h-screen text-white bg-neutral-950">
+
+<!-- Fondos -->
+<div id="bg1" class="bg" style="background-image:url('assets/backgrounds/mafia_waiting.jpg')"></div>
+<div id="bg2" class="bg" style="background-image:url('assets/backgrounds/mafia_waiting.jpg')"></div>
+
+<!-- Avatares fondo -->
+<div id="bgPeeps" class="fixed bottom-0 left-0 right-0 z-0 flex justify-center items-end gap-10 pb-3"></div>
+
+<div class="relative z-10 max-w-5xl mx-auto p-4 md:p-8 space-y-4">
+  <header class="flex items-center justify-between">
+    <h1 class="text-2xl md:text-3xl font-bold">Mafia 3 — Verd@Net</h1>
+    <div class="text-right">
+      <div id="meLine" class="text-sm text-white/70"></div>
+      <div id="roomLine" class="text-xs text-white/50"></div>
+    </div>
+  </header>
+
+  <!-- Login -->
+  <div id="authPanel" class="glass rounded-2xl p-4 hidden">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <div class="font-semibold">No has iniciado sesión</div>
+        <div class="text-sm text-white/70">Entra con Google</div>
+      </div>
+      <button id="btnLogin" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20">Iniciar sesión</button>
+    </div>
+  </div>
+
+  <!-- Admin -->
+  <div id="adminBar" class="hidden glass rounded-2xl p-3 flex flex-wrap gap-2 items-center">
+    <span class="text-xs px-2 py-1 rounded bg-emerald-500/20 border border-emerald-400/30">Admin</span>
+
+    <button id="btnStartOnline" class="px-3 py-2 rounded-lg bg-indigo-500/80 hover:bg-indigo-500 disabled:opacity-40" disabled>
+      Empezar ONLINE (3 reales)
+    </button>
+
+    <button id="btnStartBots" class="px-3 py-2 rounded-lg bg-violet-500/70 hover:bg-violet-500">
+      Partida con BOTS (solo yo)
+    </button>
+
+    <button id="btnStop" class="ml-auto px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20">
+      Detener partida → Lobby
+    </button>
+  </div>
+
+  <!-- Lobby -->
+  <section id="lobby" class="glass rounded-2xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <h2 class="font-semibold text-lg">Sala de espera</h2>
+        <p id="lobbyHint" class="text-xs text-white/60 mt-1">Entra con 3 usuarios reales o usa el modo BOTS.</p>
+      </div>
+      <span id="lobbyCount" class="text-sm text-white/70">0/3</span>
+    </div>
+    <div id="slots" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+  </section>
+
+  <!-- Noche -->
+  <section id="night" class="hidden glass rounded-2xl p-4">
+    <div class="mb-2 flex items-center justify-between">
+      <h2 class="font-semibold text-lg">Noche</h2>
+      <div id="nightNote" class="text-sm text-white/70"></div>
+    </div>
+    <div id="nightContent" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+    <p class="mt-3 text-xs text-white/50">Regla: la Mafia envenena (+1). Con 3 venenos → eliminado.</p>
+  </section>
+
+  <!-- Resultado Noche -->
+  <section id="nightResult" class="hidden glass rounded-2xl p-4">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="panelTitle text-lg">📌 Resultado de la noche</h2>
+      <span id="nightResultMini" class="text-xs text-white/60"></span>
+    </div>
+    <div id="nightResultBox" class="rounded-xl bg-white/5 border border-white/10 p-3 text-sm text-white/80"></div>
+    <div class="mt-3 text-xs text-white/50">Después de esto → chat → votación.</div>
+  </section>
+
+  <!-- Charla -->
+  <section id="talk" class="hidden glass rounded-2xl p-4">
+    <div class="mb-2 flex items-center justify-between">
+      <h2 class="font-semibold text-lg">Charla</h2>
+      <div id="talkTimer" class="text-sm text-white/70"></div>
+    </div>
+    <div class="bar mb-2"><i id="talkBar"></i></div>
+    <div id="talkStream" class="h-56 overflow-y-auto rounded-xl bg-white/5 p-3 space-y-2"></div>
+    <form id="talkForm" class="mt-3 flex gap-2">
+      <input id="talkInput" class="flex-1 px-3 py-2 rounded-lg bg-white/10 focus:outline-none" placeholder="Escribe y Enter para enviar…">
+      <button class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20" type="submit">Enviar</button>
+    </form>
+    <p class="mt-2 text-xs text-white/50">Al terminar, se borran TODOS los mensajes del chat de la partida.</p>
+  </section>
+
+  <!-- Día -->
+  <section id="day" class="hidden glass rounded-2xl p-4">
+    <div class="mb-2 flex items-center justify-between">
+      <h2 class="font-semibold text-lg">Votación</h2>
+      <div id="dayTimer" class="text-sm text-white/70"></div>
+    </div>
+    <div class="bar mb-2"><i id="voteBar"></i></div>
+    <div id="voteGrid" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+    <div class="mt-3 flex items-center gap-2">
+      <button id="btnUnvote" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20">Quitar mi voto</button>
+      <span id="myVoteLine" class="text-xs text-white/60"></span>
+    </div>
+    <p class="mt-2 text-xs text-white/60">Voto no anónimo en el resumen final (para que sea más épico). Empate → aleatorio.</p>
+  </section>
+
+  <!-- Resultado Día -->
+  <section id="dayResult" class="hidden glass rounded-2xl p-4">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="panelTitle text-lg">🗳️ Resultado de la votación</h2>
+      <span id="dayResultMini" class="text-xs text-white/60"></span>
+    </div>
+    <div id="dayVotesList" class="rounded-xl bg-white/5 border border-white/10 p-3 text-sm text-white/80 space-y-1"></div>
+    <div id="dayResultBox" class="mt-3 rounded-xl bg-white/5 border border-white/10 p-3 text-sm text-white/80"></div>
+    <div class="mt-3 text-xs text-white/50">Después de esto → noche otra vez.</div>
+  </section>
+
+  <!-- Fin -->
+  <section id="end" class="hidden glass rounded-2xl p-4 text-center">
+    <h2 id="endTitle" class="font-bold text-2xl mb-2"></h2>
+    <p id="endSub" class="text-white/70"></p>
+    <div class="mt-4">
+      <button id="btnReset" class="hidden px-4 py-2 rounded-lg bg-rose-600/80 hover:bg-rose-600">Nueva partida</button>
+      <a href="index.html" class="ml-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20">Volver al menú</a>
+    </div>
+  </section>
+</div>
+
+<!-- EPIC Reveal Overlay -->
+<div id="revealOverlay">
+  <div class="revealStage">
+    <div class="revealTop">VERD@NET · MAFIA</div>
+    <div class="flipWrap">
+      <div id="flipCard" class="flipCard">
+        <div class="face back">
+          <div class="stamp">TU CARTA</div>
+        </div>
+        <div id="roleFace" class="face front civil">
+          <div>
+            <div id="roleTitle" class="roleTitle">…</div>
+            <div id="roleSub" class="roleSub">…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="revealHint">No muestres tu rol. La paranoia es parte del juego 😈</div>
+  </div>
+</div>
+
+<script type="module">
+  // Firebase SDKs
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+  import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
+    collection, addDoc, serverTimestamp, query, orderBy, getDocs, deleteDoc, writeBatch
+  } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+  // ---- TUS CREDENCIALES ----
+  const firebaseConfig = {
+    apiKey: "AIzaSyCkNI9EEw_4Rf8f4IqygydRTbHSHBAYnKs",
+    authDomain: "klex-28ea5.firebaseapp.com",
+    databaseURL: "https://klex-28ea5-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "klex-28ea5",
+    storageBucket: "klex-28ea5.firebasestorage.app",
+    messagingSenderId: "794750673743",
+    appId: "1:794750673743:web:8b38291a417089e643db3a",
+    measurementId: "G-DQ6E8NBVGR"
+  };
+
+  // ---- App ----
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+
+  // ---- Constantes ----
+  const ROOM_ID = "sala-unica";
+  const ADMIN_EMAIL = "hodelyproductions@gmail.com";
+
+  // Timers (modo normal vs bots)
+  const TALK_SECONDS_ONLINE = 50;
+  const TALK_SECONDS_BOTS   = 5;
+  const VOTE_SECONDS        = 45;
+
+  // Presencia real (si no hay heartbeat reciente, NO cuenta)
+  const HEARTBEAT_MS = 5000;
+  const LOBBY_TIMEOUT_MS = 20000;
+
+  // Subcolecciones
+  const roomRef    = doc(db, "games", "mafia", "rooms", ROOM_ID);
+  const playersCol = collection(roomRef, "players");
+  const votesCol   = collection(roomRef, "votes");
+  const talkCol    = collection(roomRef, "talk");
+
+  // ---- Estado ----
+  let me=null, isAdmin=false;
+  let cachedPlayers={};           // uid -> player
+  let cachedOnlineHumans=[];      // players humanos conectados (alive/any)
+  let cachedOnlineBots=[];        // bots conectados
+  let roomCache=null;
+
+  let timers={ talk:null, vote:null, phase:null };
+  let myVoteTargetUid=null;
+
+  // ---- UI shortcuts ----
+  const $ = s=>document.querySelector(s);
+
+  const meLine=$("#meLine"), roomLine=$("#roomLine"),
+        authPanel=$("#authPanel"), btnLogin=$("#btnLogin"),
+        adminBar=$("#adminBar"),
+        btnStartOnline=$("#btnStartOnline"),
+        btnStartBots=$("#btnStartBots"),
+        btnStop=$("#btnStop"),
+        btnReset=$("#btnReset"),
+
+        lobby=$("#lobby"), slots=$("#slots"), lobbyCount=$("#lobbyCount"), lobbyHint=$("#lobbyHint"), bgPeeps=$("#bgPeeps"),
+
+        night=$("#night"), nightNote=$("#nightNote"), nightContent=$("#nightContent"),
+        nightResult=$("#nightResult"), nightResultBox=$("#nightResultBox"), nightResultMini=$("#nightResultMini"),
+
+        talk=$("#talk"), talkTimer=$("#talkTimer"), talkBar=$("#talkBar"),
+        talkStream=$("#talkStream"), talkForm=$("#talkForm"), talkInput=$("#talkInput"),
+
+        day=$("#day"), dayTimer=$("#dayTimer"), voteBar=$("#voteBar"), voteGrid=$("#voteGrid"),
+        btnUnvote=$("#btnUnvote"), myVoteLine=$("#myVoteLine"),
+
+        dayResult=$("#dayResult"), dayVotesList=$("#dayVotesList"), dayResultBox=$("#dayResultBox"), dayResultMini=$("#dayResultMini"),
+
+        endSec=$("#end"), endTitle=$("#endTitle"), endSub=$("#endSub"),
+
+        revealOverlay=$("#revealOverlay"), flipCard=$("#flipCard"),
+        roleFace=$("#roleFace"), roleTitle=$("#roleTitle"), roleSub=$("#roleSub");
+
+  // ---- Assets helpers ----
+  const avatarFor = (name)=>{
+    const s=(name||"").toLowerCase();
+    if(["hodely","hodei"].includes(s)) return "assets/players/Hodely.svg";
+    if(s==="hugo") return "assets/players/Hugo.svg";
+    if(s==="logan") return "assets/players/Logan.svg";
+    return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name||"??")}`;
+  };
+
+  const setBG=(url)=>{
+    const a=$("#bg1"), b=$("#bg2");
+    const show=a.style.opacity!=="0"?b:a;
+    const hide=show===a?b:a;
+    show.style.backgroundImage=`url('${url}')`;
+    show.style.opacity="1";
+    hide.style.opacity="0";
+  };
+
+  function safeRoleLabel(role){
+    if(role==="mafia") return "IMPOSTOR";
+    return "HABITANTE";
+  }
+
+  function nowMs(){ return Date.now(); }
+  function isOnline(p){
+    return (nowMs() - (p.lastSeen||0)) <= LOBBY_TIMEOUT_MS;
+  }
+
+  function escapeHtml(s){
+    return (s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+  }
+
+  // ---- Login ----
+  const provider = new GoogleAuthProvider();
+  btnLogin?.addEventListener("click", ()=>signInWithPopup(auth, provider));
+
+  onAuthStateChanged(auth, async (user)=>{
+    if(!user){
+      authPanel.classList.remove("hidden");
+      meLine.textContent = "Sin sesión";
+      return;
+    }
+    authPanel.classList.add("hidden");
+    me = { uid:user.uid, email:user.email||"", name:user.displayName || (user.email?.split("@")[0]) || "Jugador" };
+    isAdmin = (me.email===ADMIN_EMAIL);
+
+    meLine.textContent = `Tú: ${me.name}${isAdmin?" (admin)":""}`;
+    roomLine.textContent = `Sala: ${ROOM_ID}`;
+
+    if(isAdmin) adminBar.classList.remove("hidden");
+
+    await ensureRoom();
+    await joinPresence();
+
+    attachListeners();
+    bindButtons();
+  });
+
+  // ---- Ensure room exists ----
+  async function ensureRoom(){
+    const snap = await getDoc(roomRef);
+    if(!snap.exists()){
+      if(!isAdmin) return;
+      await setDoc(roomRef, {
+        status:'waiting',
+        mode:'online',         // 'online' | 'bots'
+        round:0,
+        adminUid: me.uid,
+        mafiaUid:null,
+        mafiaName:null,
+        // results
+        lastNightUid:null,
+        lastNightName:null,
+        lastNightDied:false,
+        lastDayKilledUid:null,
+        lastDayKilledName:null,
+        lastVotes:[],
+        updatedAt:serverTimestamp(),
+        createdAt:serverTimestamp()
+      });
+    } else if(isAdmin){
+      const r=snap.data();
+      if(!r.adminUid || r.adminUid!==me.uid){
+        await updateDoc(roomRef, { adminUid:me.uid, updatedAt:serverTimestamp() });
+      }
+    }
+  }
+
+  // ---- Presence ----
+  async function joinPresence(){
+    const meRef = doc(playersCol, me.uid);
+    await setDoc(meRef, {
+      uid:me.uid, name:me.name, email:me.email,
+      alive:true, poison:0, role:null,
+      bot:false,
+      lastSeen: Date.now()
+    }, {merge:true});
+
+    setInterval(async ()=>{
+      try{ await updateDoc(meRef, { lastSeen: Date.now() }); }catch{}
+    }, HEARTBEAT_MS);
+  }
+
+  // ---- Listeners ----
+  function attachListeners(){
+    onSnapshot(roomRef, (snap)=>{
+      if(!snap.exists()) return;
+      roomCache = snap.data();
+      renderByStatus(roomCache);
+      // start buttons availability depends on online humans
+      if(isAdmin){
+        btnStartOnline.disabled = !(cachedOnlineHumans.length>=3 && roomCache.status==='waiting');
+      }
+    });
+
+    onSnapshot(playersCol, (qs)=>{
+      cachedPlayers={};
+      const humans=[], bots=[];
+      qs.forEach(d=>{
+        const p=d.data();
+        cachedPlayers[p.uid]=p;
+        if(p.bot) bots.push(p); else humans.push(p);
+      });
+
+      cachedOnlineHumans = humans.filter(isOnline);
+      cachedOnlineBots   = bots.filter(isOnline);
+
+      renderLobby();
+      if(isAdmin && roomCache){
+        btnStartOnline.disabled = !(cachedOnlineHumans.length>=3 && roomCache.status==='waiting');
+      }
+    });
+
+    onSnapshot(query(talkCol, orderBy("ts","asc")), (qs)=>{
+      talkStream.innerHTML="";
+      qs.forEach(d=>{
+        const m=d.data();
+        const line=document.createElement('div');
+        line.className="text-sm";
+        line.innerHTML=`<span class="text-white/50">${escapeHtml(m.name||"")}:</span> ${escapeHtml(m.text||"")}`;
+        talkStream.appendChild(line);
+      });
+      talkStream.scrollTop = talkStream.scrollHeight;
+    });
+
+    // Track my current vote (optional, for UI)
+    onSnapshot(doc(votesCol, me?.uid || "noop"), (snap)=>{
+      if(snap.exists()){
+        const v=snap.data();
+        myVoteTargetUid = v.target || null;
+      } else {
+        myVoteTargetUid = null;
+      }
+      renderMyVoteLine();
+    });
+  }
+
+  function bindButtons(){
+    if(btnStartOnline._bound) return;
+    btnStartOnline._bound = true;
+
+    btnStartOnline.addEventListener("click", startOnlineGame);
+    btnStartBots.addEventListener("click", startBotsGame);
+    btnStop.addEventListener("click", stopToLobby);
+    btnReset.addEventListener("click", resetRoomAdmin);
+
+    btnUnvote.addEventListener("click", ()=>deleteDoc(doc(votesCol, me.uid)).catch(()=>{}));
+
+    talkForm.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const text=talkInput.value.trim(); if(!text) return;
+      // Talk allowed by rules (signedIn + uid matches)
+      try{
+        await addDoc(talkCol, { uid:me.uid, name:me.name, text, ts:serverTimestamp() });
+        talkInput.value="";
+      }catch(err){
+        console.error(err);
+        alert("No se pudo enviar (rules/permisos).");
+      }
+    });
+  }
+
+  // ---- Lobby render (IMPORTANT: online mode shows ONLY humans) ----
+  function renderLobby(){
+    if(!roomCache) return;
+
+    const mode = roomCache.mode || 'online';
+    const showArr = (mode==='bots')
+      ? [ ...cachedOnlineHumans, ...cachedOnlineBots ] // bots mode shows both
+      : [ ...cachedOnlineHumans ];                     // online mode shows ONLY humans
+
+    // Count (max 3 displayed)
+    lobbyCount.textContent = `${Math.min(showArr.length,3)}/3`;
+
+    lobbyHint.textContent = (mode==='bots')
+      ? "Modo BOTS: puedes jugar solo (Hodely + 2 bots)."
+      : "Modo ONLINE: entran 3 jugadores reales conectados. Si faltan, no se puede iniciar.";
+
+    slots.innerHTML="";
+    for(let i=0;i<3;i++){
+      const p = showArr[i];
+      const card=document.createElement('div');
+      card.className="rounded-xl p-3 bg-white/5 border border-white/10 flex items-center gap-3";
+
+      if(p){
+        const online = isOnline(p);
+        const img=document.createElement('img');
+        img.className="w-10 h-10 rounded-full border border-white/15";
+        img.src=avatarFor(p.name);
+
+        const info=document.createElement('div');
+        info.className="flex-1";
+
+        const dot = `<span class="dot ${online?'on':'off'}"></span>`;
+        const roleLine = p.alive ? `🧪 ${p.poison||0}/3` : `💀 eliminado`;
+        const botTag = p.bot ? `<span class="text-[10px] px-2 py-1 rounded bg-violet-500/15 border border-violet-400/20 ml-2">BOT</span>` : ``;
+
+        info.innerHTML = `
+          <div class="flex items-center gap-2">
+            ${dot}
+            <div class="font-semibold">${escapeHtml(p.name||"")}${botTag}</div>
+          </div>
+          <div class="text-xs text-white/60">${roleLine} · ${online?'conectado':'desconectado'}</div>
+        `;
+
+        card.append(img,info);
+      } else {
+        card.innerHTML = `
+          <div class="w-10 h-10 rounded-full bg-white/10 border border-white/10"></div>
+          <div>
+            <div class="font-semibold">Esperando…</div>
+            <div class="text-xs text-white/60">slot libre</div>
+          </div>
+        `;
+      }
+
+      slots.appendChild(card);
+    }
+
+    // Avatares fondo: solo showArr (max 3, no lía la escena)
+    bgPeeps.innerHTML="";
+    showArr.slice(0,3).forEach(p=>{
+      const i=document.createElement('img');
+      i.src=avatarFor(p.name);
+      i.style.height="120px";
+      i.alt=p.name;
+      bgPeeps.appendChild(i);
+    });
+  }
+
+  function renderMyVoteLine(){
+    if(!roomCache || roomCache.status!=='day'){ myVoteLine.textContent=""; return; }
+    if(!myVoteTargetUid){ myVoteLine.textContent="No has votado aún."; return; }
+    const t=cachedPlayers[myVoteTargetUid];
+    myVoteLine.textContent = t ? `Tu voto: ${t.name}` : `Tu voto: ${myVoteTargetUid}`;
+  }
+
+  // ---- Phase switch ----
+  function renderByStatus(room){
+    // Backgrounds
+    if(room.status==='waiting') setBG('assets/backgrounds/mafia_waiting.jpg');
+    if(room.status==='night') setBG('assets/etapas/noche.jpg');
+    if(room.status==='nightResult') setBG('assets/etapas/noche.jpg');
+    if(room.status==='talk') setBG('assets/etapas/Dia.jpg');
+    if(room.status==='day') setBG('assets/etapas/Dia.jpg');
+    if(room.status==='dayResult') setBG('assets/etapas/Dia.jpg');
+    if(room.status==='end') setBG('assets/etapas/Dia.jpg');
+
+    // Sections
+    lobby.classList.toggle("hidden", room.status!=='waiting');
+    night.classList.toggle("hidden", room.status!=='night');
+    nightResult.classList.toggle("hidden", room.status!=='nightResult');
+    talk.classList.toggle("hidden", room.status!=='talk');
+    day.classList.toggle("hidden", room.status!=='day');
+    dayResult.classList.toggle("hidden", room.status!=='dayResult');
+    endSec.classList.toggle("hidden", room.status!=='end');
+
+    btnReset.classList.toggle("hidden", !(isAdmin && room.status==='end'));
+
+    // On enter phases
+    if(room.status==='night') drawNight(room);
+    if(room.status==='nightResult') drawNightResult(room);
+    if(room.status==='talk') startTalkTimer(room.mode==='bots');
+    if(room.status==='day') { renderVoteGrid(); startVoteTimer(); }
+    if(room.status==='dayResult') drawDayResult(room);
+    if(room.status==='end') drawEnd(room);
+  }
+
+  // ---- EPIC REVEAL (called by admin during start) ----
+  function startEpicReveal(role){
+    const isMafia = role==='mafia';
+    roleTitle.textContent = isMafia ? 'IMPOSTOR' : 'HABITANTE';
+    roleSub.textContent = isMafia
+      ? 'Eres la Mafia. Esta noche elige a quién envenenar.'
+      : 'No eres impostor. Observa, habla… y vota con cabeza.';
+
+    roleFace.classList.toggle('mafia', isMafia);
+    roleFace.classList.toggle('civil', !isMafia);
+
+    // reset
+    flipCard.classList.remove('flip');
+    revealOverlay.classList.remove('show','on');
+
+    revealOverlay.classList.add('show');
+    requestAnimationFrame(()=> revealOverlay.classList.add('on'));
+
+    setTimeout(()=> flipCard.classList.add('flip'), 650);
+
+    // close automatically (also allow click)
+    const close = ()=>{
+      revealOverlay.classList.remove('on');
+      setTimeout(()=> revealOverlay.classList.remove('show'), 350);
+    };
+
+    const clickOnce = async ()=>{
+      revealOverlay.onclick=null;
+      close();
+    };
+    revealOverlay.onclick = clickOnce;
+
+    setTimeout(()=>{ close(); }, 2800);
+  }
+
+  // ---- Night UI ----
+  function visiblePlayersForGame(){
+    const mode = roomCache?.mode || 'online';
+    const arr = Object.values(cachedPlayers).filter(p=>isOnline(p));
+    if(mode==='bots'){
+      // in bots mode: show me + bots only
+      return arr.filter(p=> p.bot || p.uid===me.uid );
+    } else {
+      // online mode: show humans only
+      return arr.filter(p=> !p.bot );
+    }
+  }
+
+  function aliveVisiblePlayers(){
+    return visiblePlayersForGame().filter(p=>p.alive);
+  }
+
+  function drawNight(room){
+    nightContent.innerHTML="";
+    const meP = cachedPlayers[me?.uid];
+    const alive = aliveVisiblePlayers();
+
+    // Info
+    const imMafia = (meP?.role==='mafia' && meP.alive);
+    nightNote.textContent = imMafia
+      ? "Eres Mafia. Elige a quién envenenar (+1)."
+      : "Duerme… y reza.";
+
+    // bots mafia action (admin orchestration)
+    if(isAdmin && room.mode==='bots' && room.mafiaUid && cachedPlayers[room.mafiaUid]?.bot){
+      // ensure only once per night
+      if(!room._botActed){
+        setTimeout(()=> mafiaBotPoison(), 900 + Math.random()*900);
+      }
+    }
+
+    // Mafia human can choose
+    if(imMafia){
+      alive.forEach(p=>{
+        const b=document.createElement('button');
+        b.className="p-3 rounded-xl bg-white/10 hover:bg-white/20 text-left";
+        b.innerHTML=`
+          <div class="flex items-center gap-3">
+            <img src="${avatarFor(p.name)}" class="w-10 h-10 rounded-full border border-white/20">
+            <div class="flex-1">
+              <div class="font-semibold">${escapeHtml(p.name||"")}</div>
+              <div class="text-xs text-white/60">🧪 ${(p.poison||0)}/3</div>
+            </div>
+          </div>
+        `;
+        b.onclick=()=> mafiaHumanPoison(p.uid);
+        nightContent.appendChild(b);
+      });
+    } else {
+      // show alive list as ambience
+      alive.forEach(p=>{
+        const div=document.createElement('div');
+        div.className="p-3 rounded-xl bg-white/5 border border-white/10";
+        div.innerHTML=`
+          <div class="flex items-center gap-3">
+            <img src="${avatarFor(p.name)}" class="w-10 h-10 rounded-full border border-white/15">
+            <div class="flex-1">
+              <div class="font-semibold">${escapeHtml(p.name||"")}</div>
+              <div class="text-xs text-white/60">${p.alive?'vivo':'muerto'} · 🧪 ${(p.poison||0)}/3</div>
+            </div>
+          </div>
+        `;
+        nightContent.appendChild(div);
+      });
+    }
+  }
+
+  async function mafiaHumanPoison(targetUid){
+    try{
+      // Only poison +1 (rules require only 'poison' changes)
+      const pref=doc(playersCol, targetUid);
+      const s=await getDoc(pref); if(!s.exists()) return;
+      const p=s.data();
+      await updateDoc(pref,{ poison:(p.poison||0)+1 });
+
+      // Admin moves phase + stores results
+      if(isAdmin){
+        const tName = p.name || targetUid;
+        await computeDeathsAndMaybeEnd();
+        await updateDoc(roomRef,{
+          status:'nightResult',
+          lastNightUid: targetUid,
+          lastNightName: tName,
+          updatedAt: serverTimestamp()
+        });
+      }
+    }catch(e){
+      console.error(e);
+      alert("No se pudo envenenar (rules/permisos).");
+    }
+  }
+
+  async function mafiaBotPoison(){
+    try{
+      const alive = aliveVisiblePlayers();
+      const t = alive[Math.floor(Math.random()*alive.length)];
+      await applyPoisonAdmin(t.uid, 1); // admin can do it
+      await computeDeathsAndMaybeEnd();
+
+      await updateDoc(roomRef,{
+        status:'nightResult',
+        lastNightUid: t.uid,
+        lastNightName: t.name || t.uid,
+        updatedAt: serverTimestamp()
+      });
+    }catch(e){
+      console.error(e);
+    }
+  }
+
+  // ---- Night result ----
+  function drawNightResult(room){
+    const name = room.lastNightName || "alguien";
+    const uid  = room.lastNightUid;
+
+    const p = uid ? cachedPlayers[uid] : null;
+    const poison = p ? (p.poison||0) : "?";
+    const died = p ? (!p.alive) : false;
+
+    nightResultMini.textContent = `Ronda ${room.round||1}`;
+    nightResultBox.innerHTML = `
+      <div class="text-white/90"><b>La Mafia actuó.</b></div>
+      <div class="mt-1">Objetivo: <b>${escapeHtml(name)}</b></div>
+      <div class="mt-1">Venenos: <b>${poison}/3</b></div>
+      <div class="mt-2">${died ? `💀 <b>${escapeHtml(name)}</b> ha caído.` : `✅ <b>${escapeHtml(name)}</b> sobrevive… por ahora.`}</div>
+    `;
+
+    // Auto advance to talk (admin)
+    if(isAdmin){
+      clearTimeout(timers.phase);
+      timers.phase = setTimeout(async ()=>{
+        // Clean votes (safety) and move
+        await purgeCollection(votesCol);
+        await updateDoc(roomRef,{ status:'talk', updatedAt:serverTimestamp() });
+      }, 2800);
+    }
+  }
+
+  // ---- Talk timer ----
+  function startTalkTimer(isBots){
+    const total = isBots ? TALK_SECONDS_BOTS : TALK_SECONDS_ONLINE;
+    let left = total;
+    talkTimer.textContent = `${left}s`;
+    talkBar.style.width="0%";
+
+    clearInterval(timers.talk);
+    timers.talk=setInterval(async ()=>{
+      left--;
+      talkTimer.textContent = `${left}s`;
+      talkBar.style.width = `${(1-left/total)*100}%`;
+
+      if(left<=0){
+        clearInterval(timers.talk);
+        if(isAdmin){
+          // IMPORTANT: borrar TODOS los mensajes (100%)
+          await purgeCollection(talkCol);
+          await updateDoc(roomRef,{ status:'day', updatedAt:serverTimestamp() });
+        }
+      }
+    },1000);
+  }
+
+  // ---- Day / Voting ----
+  function renderVoteGrid(){
+    voteGrid.innerHTML="";
+    const alive = aliveVisiblePlayers();
+    alive.forEach(p=>{
+      const b=document.createElement('button');
+      b.className="rounded-xl p-3 bg-white/10 hover:bg-white/20 text-left border border-white/10";
+      const selected = (myVoteTargetUid===p.uid);
+      if(selected) b.classList.add("ring-2","ring-indigo-400/60");
+
+      b.innerHTML=`
+        <div class="flex items-center gap-3">
+          <img src="${avatarFor(p.name)}" class="w-10 h-10 rounded-full border border-white/20">
+          <div class="flex-1">
+            <div class="font-semibold">${escapeHtml(p.name||"")}</div>
+            <div class="text-xs text-white/60">🧪 ${(p.poison||0)}/3</div>
+          </div>
+          <div class="text-xs text-white/60">${selected?'✅':'Votar'}</div>
+        </div>
+      `;
+
+      b.onclick=async ()=>{
+        try{
+          await setDoc(doc(votesCol, me.uid), {
+            from: me.uid,
+            fromName: me.name,
+            target: p.uid,
+            targetName: p.name||p.uid,
+            ts: serverTimestamp()
+          });
+        }catch(e){
+          console.error(e);
+          alert("No se pudo votar (rules: solo durante DAY).");
+        }
+      };
+
+      voteGrid.appendChild(b);
+    });
+
+    renderMyVoteLine();
+  }
+
+  function startVoteTimer(){
+    let left=VOTE_SECONDS;
+    dayTimer.textContent=`${left}s`;
+    voteBar.style.width="0%";
+
+    clearInterval(timers.vote);
+    timers.vote=setInterval(async ()=>{
+      left--;
+      dayTimer.textContent=`${left}s`;
+      voteBar.style.width=`${(1-left/VOTE_SECONDS)*100}%`;
+
+      const alive = aliveVisiblePlayers();
+      const qs=await getDocs(votesCol);
+      const voters=new Set(qs.docs.map(d=>d.id));
+
+      // If everyone voted, resolve early
+      if(voters.size>=alive.length){
+        clearInterval(timers.vote);
+        if(isAdmin) await resolveVotes();
+      }
+      if(left<=0){
+        clearInterval(timers.vote);
+        if(isAdmin) await resolveVotes();
+      }
+    },1000);
+  }
+
+  async function resolveVotes(){
+    try{
+      // Read votes
+      const qs=await getDocs(votesCol);
+      const votes = qs.docs.map(d=>({ id:d.id, ...d.data() }));
+
+      // Store readable list (who voted who)
+      const list = votes.map(v=>({
+        fromName: v.fromName || cachedPlayers[v.from]?.name || v.from,
+        targetName: v.targetName || cachedPlayers[v.target]?.name || v.target
+      }));
+
+      // Count targets
+      const counts={};
+      votes.forEach(v=>{
+        if(!v.target) return;
+        counts[v.target]=(counts[v.target]||0)+1;
+      });
+
+      // Clear votes right away (server health)
+      await purgeCollection(votesCol);
+
+      // Determine chosen
+      let chosenUid=null;
+      if(Object.keys(counts).length){
+        const max = Math.max(...Object.values(counts));
+        const top = Object.entries(counts).filter(([_,c])=>c===max).map(([id])=>id);
+        chosenUid = top[Math.floor(Math.random()*top.length)];
+      }
+
+      // Apply day effect: +2 poison (admin)
+      let killedName=null;
+      if(chosenUid){
+        const chosenP = cachedPlayers[chosenUid];
+        killedName = chosenP?.name || chosenUid;
+        await applyPoisonAdmin(chosenUid, 2);
+      }
+
+      await computeDeathsAndMaybeEnd();
+      const rs=await getDoc(roomRef);
+      if(!rs.exists()) return;
+      const r=rs.data();
+      if(r.status==='end') return;
+
+      await updateDoc(roomRef,{
+        status:'dayResult',
+        lastVotes: list,
+        lastDayKilledUid: chosenUid || null,
+        lastDayKilledName: killedName || null,
+        updatedAt: serverTimestamp()
+      });
+    }catch(e){
+      console.error(e);
+    }
+  }
+
+  function drawDayResult(room){
+    dayResultMini.textContent = `Ronda ${room.round||1}`;
+
+    // Votes list
+    dayVotesList.innerHTML = "";
+    const arr = Array.isArray(room.lastVotes) ? room.lastVotes : [];
+    if(!arr.length){
+      dayVotesList.innerHTML = `<div class="text-white/60">Nadie votó. (Sois peligrosos.)</div>`;
+    } else {
+      arr.forEach(v=>{
+        const div=document.createElement("div");
+        div.innerHTML = `• <b>${escapeHtml(v.fromName||"¿?")}</b> votó a <b>${escapeHtml(v.targetName||"¿?")}</b>`;
+        dayVotesList.appendChild(div);
+      });
+    }
+
+    // Result text
+    const uid = room.lastDayKilledUid;
+    if(!uid){
+      dayResultBox.innerHTML = `<div>⚠️ No hubo objetivo (sin votos). Se vuelve a la noche.</div>`;
+    } else {
+      const p=cachedPlayers[uid];
+      const poison = p ? (p.poison||0) : "?";
+      const died = p ? (!p.alive) : false;
+      dayResultBox.innerHTML = `
+        <div>El pueblo decide…</div>
+        <div class="mt-1">Objetivo: <b>${escapeHtml(room.lastDayKilledName||uid)}</b></div>
+        <div class="mt-1">Venenos: <b>${poison}/3</b></div>
+        <div class="mt-2">${died ? `💀 <b>${escapeHtml(room.lastDayKilledName||uid)}</b> ha sido eliminado.` : `✅ <b>${escapeHtml(room.lastDayKilledName||uid)}</b> sobrevive… por ahora.`}</div>
+      `;
+    }
+
+    // Auto next night (admin)
+    if(isAdmin){
+      clearTimeout(timers.phase);
+      timers.phase = setTimeout(async ()=>{
+        const rs=await getDoc(roomRef);
+        if(!rs.exists()) return;
+        const r=rs.data();
+        if(r.status==='end') return;
+
+        await updateDoc(roomRef,{
+          status:'night',
+          round:(r.round||0)+1,
+          updatedAt:serverTimestamp()
+        });
+      }, 3300);
+    }
+  }
+
+  // ---- End ----
+  function drawEnd(room){
+    endTitle.textContent = room.winSide==='habitantes' ? "¡Ganan los Habitantes!" : "¡Gana la Mafia!";
+    endSub.textContent   = `El impostor era ${room.mafiaName || "¿?"}.`;
+  }
+
+  // ---- Admin start/stop/reset ----
+  async function startOnlineGame(){
+    if(!isAdmin) return;
+    if(!roomCache || roomCache.status!=='waiting') return;
+
+    // Must be 3 real connected humans
+    const act = cachedOnlineHumans.slice(0,3);
+    if(act.length<3){ alert("Necesitas 3 usuarios reales conectados."); return; }
+
+    // Make sure bots are NOT shown/used in online mode (delete any existing bots)
+    await deleteAllBots();
+
+    // Assign mafia randomly among the 3 humans
+    const mafia = act[Math.floor(Math.random()*act.length)];
+
+    // Reset + assign roles
+    for(const p of act){
+      await updateDoc(doc(playersCol, p.uid), {
+        poison:0, alive:true,
+        role:(p.uid===mafia.uid ? 'mafia' : 'habitante'),
+        bot:false,
+        lastSeen: Date.now()
+      });
+    }
+
+    // Clean talk/votes (server health)
+    await purgeCollection(talkCol);
+    await purgeCollection(votesCol);
+
+    // Set room
+    await updateDoc(roomRef,{
+      mode:'online',
+      status:'waiting', // keep waiting for a beat, then reveal overlay locally and move to night
+      round:1,
+      mafiaUid: mafia.uid,
+      mafiaName: mafia.name,
+      winSide:null,
+      lastVotes:[],
+      lastNightUid:null,lastNightName:null,lastNightDied:false,
+      lastDayKilledUid:null,lastDayKilledName:null,
+      updatedAt:serverTimestamp()
+    });
+
+    // Epic reveal for EVERYONE: each client will show based on its own role
+    // We flip by triggering a short status 'reveal' via local overlay only.
+    // (No separate status needed: we just show the overlay now, then move to night.)
+    // Show overlay for me
+    startEpicReveal(cachedPlayers[me.uid]?.role || (me.uid===mafia.uid?'mafia':'habitante'));
+
+    // Move to night after reveal
+    setTimeout(async ()=>{
+      await updateDoc(roomRef,{ status:'night', updatedAt:serverTimestamp() });
+    }, 3200);
+  }
+
+  async function startBotsGame(){
+    if(!isAdmin) return;
+    if(!roomCache || roomCache.status!=='waiting') return;
+
+    // Ensure only me + 2 bots in bots mode
+    await ensureBot("Hugo", "hugo@bot");
+    await ensureBot("Logan","logan@bot");
+
+    // Wait a tick so snapshots catch up
+    await new Promise(r=>setTimeout(r, 400));
+
+    const act = visiblePlayersForGame().filter(p=>isOnline(p)); // in bots mode it returns me + bots
+    const meP = act.find(p=>p.uid===me.uid);
+    const bots = act.filter(p=>p.bot);
+
+    if(!meP || bots.length<2){
+      alert("No pude preparar bots. Reintenta.");
+      return;
+    }
+
+    const trio = [meP, ...bots.slice(0,2)];
+    const mafia = trio[Math.floor(Math.random()*trio.length)];
+
+    // assign roles
+    for(const p of trio){
+      await updateDoc(doc(playersCol, p.uid), {
+        poison:0, alive:true,
+        role:(p.uid===mafia.uid ? 'mafia' : 'habitante'),
+        lastSeen: Date.now()
+      });
+    }
+
+    await purgeCollection(talkCol);
+    await purgeCollection(votesCol);
+
+    await updateDoc(roomRef,{
+      mode:'bots',
+      round:1,
+      mafiaUid: mafia.uid,
+      mafiaName: mafia.name,
+      winSide:null,
+      lastVotes:[],
+      lastNightUid:null,lastNightName:null,lastNightDied:false,
+      lastDayKilledUid:null,lastDayKilledName:null,
+      updatedAt:serverTimestamp()
+    });
+
+    // Epic reveal for me
+    const myRole = (me.uid===mafia.uid) ? 'mafia' : 'habitante';
+    startEpicReveal(myRole);
+
+    setTimeout(async ()=>{
+      await updateDoc(roomRef,{ status:'night', updatedAt:serverTimestamp() });
+    }, 3200);
+  }
+
+  async function stopToLobby(){
+    if(!isAdmin) return;
+    await purgeCollection(talkCol);
+    await purgeCollection(votesCol);
+
+    // Reset room status only (players keep presence, but roles cleared and poison reset)
+    const qs = await getDocs(playersCol);
+    for(const d of qs.docs){
+      const p=d.data();
+      // In online mode we keep humans, bots can remain but won't show in online mode.
+      await updateDoc(d.ref, { poison:0, alive:true, role:null });
+    }
+
+    await updateDoc(roomRef,{
+      status:'waiting',
+      mode:'online',
+      round:0,
+      mafiaUid:null,
+      mafiaName:null,
+      winSide:null,
+      lastVotes:[],
+      lastNightUid:null,lastNightName:null,lastNightDied:false,
+      lastDayKilledUid:null,lastDayKilledName:null,
+      updatedAt:serverTimestamp()
+    });
+  }
+
+  async function resetRoomAdmin(){
+    if(!isAdmin) return;
+    await stopToLobby();
+  }
+
+  // ---- Bots helpers ----
+  async function ensureBot(name,email){
+    const id="bot_"+name.toLowerCase();
+    const ref=doc(playersCol,id);
+    await setDoc(ref,{
+      uid:id, name, email,
+      bot:true,
+      alive:true, poison:0, role:null,
+      lastSeen: Date.now()
+    }, {merge:true});
+  }
+
+  async function deleteAllBots(){
+    const qs=await getDocs(playersCol);
+    const bots = qs.docs.filter(d=>d.data()?.bot===true);
+    for(const d of bots){
+      try{ await deleteDoc(d.ref); }catch{}
+    }
+  }
+
+  // ---- Admin helpers for poison/deaths/win ----
+  async function applyPoisonAdmin(uid,inc){
+    const pref=doc(playersCol, uid);
+    const s=await getDoc(pref); if(!s.exists()) return;
+    const p=s.data();
+    const np=(p.poison||0)+inc;
+    const alive = np<3;
+    await updateDoc(pref,{ poison:np, alive, lastSeen: Date.now() });
+  }
+
+  async function computeDeathsAndMaybeEnd(){
+    // Determine win conditions among "visiblePlayersForGame" group only
+    const players = visiblePlayersForGame().filter(isOnline);
+
+    let mafiaAlive=false, mafiaName=null, civAlive=0;
+    players.forEach(p=>{
+      if(!p.alive) return;
+      if(p.role==='mafia'){ mafiaAlive=true; mafiaName=p.name||mafiaName; }
+      if(p.role==='habitante'){ civAlive++; }
+    });
+
+    let win=null;
+    if(!mafiaAlive) win='habitantes';
+    else if(mafiaAlive && civAlive<=1) win='mafia';
+
+    if(win){
+      await updateDoc(roomRef,{
+        status:'end',
+        winSide: win,
+        mafiaName: mafiaName || roomCache?.mafiaName || null,
+        updatedAt: serverTimestamp()
+      });
+    }
+  }
+
+  // ---- Purge collection safely (100% talk cleanup / votes cleanup) ----
+  async function purgeCollection(colRef){
+    // batch delete in chunks
+    const qs=await getDocs(colRef);
+    if(qs.empty) return;
+
+    const docs = qs.docs;
+    const chunkSize = 350; // safe
+    for(let i=0;i<docs.length;i+=chunkSize){
+      const batch=writeBatch(db);
+      docs.slice(i,i+chunkSize).forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+
+  // ---- Defensive: when game starts, show my reveal overlay once roles exist ----
+  // If admin starts game while I'm on another tab, I still should see reveal.
+  // We'll watch role assignment and if I have role + status still waiting at round>=1, show reveal once.
+  let revealOnceKey = null;
+  setInterval(()=>{
+    if(!roomCache || !me) return;
+    if(roomCache.status!=='waiting') return;
+    if((roomCache.round||0) < 1) return;
+
+    const meP = cachedPlayers[me.uid];
+    if(!meP?.role) return;
+
+    const key = `${roomCache.round}:${meP.role}`;
+    if(revealOnceKey===key) return;
+    revealOnceKey = key;
+
+    startEpicReveal(meP.role);
+  }, 600);
+
+</script>
+</body>
+</html>
